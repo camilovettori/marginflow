@@ -306,11 +306,8 @@ export async function login(
   email: string,
   password: string
 ): Promise<LoginResponse> {
-  const res = await fetch(`${API_URL}/auth/login`, {
+  const res = await rawFetch("/auth/login", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({
       email: email.trim(),
       password: password.trim(),
@@ -342,10 +339,9 @@ export async function selectTenant(
     throw new Error("No access token found.")
   }
 
-  const res = await fetch(`${API_URL}/auth/select-tenant`, {
+  const res = await rawFetch("/auth/select-tenant", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
@@ -361,6 +357,7 @@ export async function selectTenant(
   const data = (await res.json()) as SelectTenantResponse
 
   setAccessToken(data.access_token)
+
   if (data.refresh_token) {
     setRefreshToken(data.refresh_token)
   }

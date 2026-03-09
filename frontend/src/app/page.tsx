@@ -187,8 +187,8 @@ export default function Home() {
         const meData = await getMe()
         setMe(meData)
 
-        if (!meData.tenant_id) {
-          router.push("/login")
+                if (!meData?.tenant_id) {
+          router.replace("/login")
           return
         }
 
@@ -219,7 +219,7 @@ export default function Home() {
           message.toLowerCase().includes("missing bearer token") ||
           message.toLowerCase().includes("invalid token")
         ) {
-          router.push("/login")
+                    router.replace("/login")
           return
         }
 
