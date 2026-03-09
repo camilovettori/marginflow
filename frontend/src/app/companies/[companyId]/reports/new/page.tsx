@@ -18,7 +18,7 @@ import {
   Trash2,
 } from "lucide-react"
 
-const TENANT_ID = "ee8c5e98-427b-4ddc-9d02-9b797caf4447"
+
 
 type CustomField = {
   id: string
@@ -341,23 +341,20 @@ export default function NewWeeklyReportPage() {
         .filter(Boolean)
         .join("\n\n")
 
-      await createWeeklyReport(
-        {
-          company_id: companyId,
-          week_ending: weekEnding,
-          sales_inc_vat: Number(salesIncVat || 0),
-          sales_ex_vat: Number(revenueBase.toFixed(2)),
-          wages: wagesNum,
-          holiday_pay: 0,
-          food_cost: Number(computedFoodCost.toFixed(2)),
-          fixed_costs: fixedCostsNum,
-          variable_costs: Number((variableCostsNum + customCostTotal).toFixed(2)),
-          loans_hp: loansHpNum,
-          vat_due: Number(vatDue || 0),
-          notes: metadataNotes || undefined,
-        },
-        TENANT_ID
-      )
+            await createWeeklyReport({
+        company_id: companyId,
+        week_ending: weekEnding,
+        sales_inc_vat: Number(salesIncVat || 0),
+        sales_ex_vat: Number(revenueBase.toFixed(2)),
+        wages: wagesNum,
+        holiday_pay: 0,
+        food_cost: Number(computedFoodCost.toFixed(2)),
+        fixed_costs: fixedCostsNum,
+        variable_costs: Number((variableCostsNum + customCostTotal).toFixed(2)),
+        loans_hp: loansHpNum,
+        vat_due: Number(vatDue || 0),
+        notes: metadataNotes || undefined,
+      })
 
       router.push(`/companies/${companyId}`)
     } catch (err) {
