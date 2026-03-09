@@ -22,7 +22,8 @@ import {
   type TenantBrief,
 } from "@/services/api"
 
-const API_URL = "http://127.0.0.1:8000"
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
 type RegisterResponse = {
   access_token: string
@@ -62,13 +63,13 @@ async function registerUser(payload: {
   workspace_name?: string
 }): Promise<RegisterResponse> {
   const res = await fetch(`${API_URL}/auth/register`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-    body: JSON.stringify(payload),
-  })
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  credentials: "include",
+  body: JSON.stringify(payload),
+})
 
   if (!res.ok) {
     const text = await res.text()
