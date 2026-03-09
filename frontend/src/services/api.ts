@@ -269,17 +269,23 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const tenantId = getActiveTenantId()
 
   const makeRequest = async (bearer: string | null) => {
-    return fetch(`${API_URL}${path}`, {
-      ...options,
-      credentials: "include",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
-        ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
-        ...(options?.headers || {}),
-      },
-    })
+    try {
+      return await fetch(`${API_URL}${path}`, {
+        ...options,
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+          ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+          ...(options?.headers || {}),
+        },
+      })
+    } catch {
+      throw new Error(
+        "Unable to reach the server. Check if the backend is running or if CORS is configured correctly."
+      )
+    }
   }
 
   let res = await makeRequest(token)
@@ -430,4 +436,29 @@ export async function createWeeklyReport(
     method: "POST",
     body: JSON.stringify(payload),
   })
+}
+
+export type RegisterResponse = {
+  access_token: string
+  tenants: TenantBrief[]
+  refresh_token?: string
+}
+
+export async function registerUser(payload: {
+  full_name: string
+  email: string
+  password: string
+  workspace_name?: string
+}): Promise<RegisterResponse> {
+  const res = await rawFetch("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `Register failed (${res.status})`)
+  }
+
+  return res.json() as Promise<RegisterResponse>
 }

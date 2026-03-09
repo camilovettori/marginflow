@@ -17,18 +17,14 @@ import {
 } from "lucide-react"
 import {
   getMe,
+  registerUser,
   selectTenant,
   setAccessToken,
   type TenantBrief,
 } from "@/services/api"
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
-type RegisterResponse = {
-  access_token: string
-  tenants: TenantBrief[]
-}
+
 
 function getFriendlyError(message: string) {
   const lower = message.toLowerCase()
@@ -54,29 +50,6 @@ function getFriendlyError(message: string) {
   }
 
   return message
-}
-
-async function registerUser(payload: {
-  full_name: string
-  email: string
-  password: string
-  workspace_name?: string
-}): Promise<RegisterResponse> {
-  const res = await fetch(`${API_URL}/auth/register`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  credentials: "include",
-  body: JSON.stringify(payload),
-})
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `Register failed (${res.status})`)
-  }
-
-  return res.json() as Promise<RegisterResponse>
 }
 
 function Brand() {
@@ -214,9 +187,7 @@ export default function SignupPage() {
       throw new Error("Full name is required.")
     }
 
-    if (!workspaceName.trim()) {
-      throw new Error("Workspace name is required.")
-    }
+   
 
     if (!email.trim()) {
       throw new Error("Email is required.")
@@ -252,10 +223,11 @@ export default function SignupPage() {
         full_name: fullName.trim(),
         email: email.trim().toLowerCase(),
         password,
+})
        
         // Se o backend ainda NÃO aceitar workspace_name,
         // remova esta linha acima.
-      })
+      
 
       if (!data.access_token) {
         throw new Error("Registration succeeded but no access token was returned.")
