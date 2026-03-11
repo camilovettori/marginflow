@@ -52,6 +52,41 @@ def _week_ending_sunday(d: date) -> date:
     return d + timedelta(days=days_until_sunday)
 
 
+def _is_safe_to_autoupdate(existing: WeeklyReport) -> bool:
+    """
+    Só atualiza automaticamente se o report ainda estiver praticamente 'virgem'
+    ou já tiver sido importado do Zoho antes.
+    """
+    notes = (existing.notes or "").lower()
+
+    was_imported_from_zoho = "zoho" in notes
+
+    has_manual_costs = any(
+        float(value or 0) > 0
+        for value in [
+            existing.wages,
+            existing.holiday_pay,
+            existing.food_cost,
+            existing.fixed_costs,
+            existing.variable_costs,
+            existing.loans_hp,
+            existing.vat_due,
+        ]
+    )
+
+    if was_imported_from_zoho and not has_manual_costs:
+        return True
+
+    if (
+        float(existing.sales_inc_vat or 0) == 0
+        and float(existing.sales_ex_vat or 0) == 0
+        and not has_manual_costs
+    ):
+        return True
+
+    return False
+
+
 async def _refresh_access_token(connection: ZohoConnection) -> tuple[str, object | None]:
     token_url = f"{ZOHO_ACCOUNTS_BASE}/oauth/v2/token"
 
@@ -193,10 +228,11 @@ async def sync_zoho_invoices_to_weekly_reports(
 
         week_ending = _week_ending_sunday(invoice_date)
 
+        # Zoho Invoice:
+        # total = final amount incl VAT
+        # sub_total = subtotal before tax
         sales_inc_vat = _to_decimal(invoice.get("total"))
-        sales_ex_vat = _to_decimal(
-            invoice.get("sub_total") or invoice.get("subtotal")
-        )
+        sales_ex_vat = _to_decimal(invoice.get("sub_total") or invoice.get("subtotal"))
 
         if week_ending not in weekly_totals:
             weekly_totals[week_ending] = {
@@ -208,7 +244,8 @@ async def sync_zoho_invoices_to_weekly_reports(
         weekly_totals[week_ending]["sales_ex_vat"] += sales_ex_vat
 
     created_count = 0
-    skipped_count = 0
+    updated_count = 0
+    skipped_existing_reports = 0
 
     for week_ending, totals in sorted(weekly_totals.items()):
         existing = (
@@ -220,8 +257,17 @@ async def sync_zoho_invoices_to_weekly_reports(
             )
             .first()
         )
+
         if existing:
-            skipped_count += 1
+            if _is_safe_to_autoupdate(existing):
+                existing.sales_inc_vat = float(totals["sales_inc_vat"])
+                existing.sales_ex_vat = float(totals["sales_ex_vat"])
+                existing.notes = "Imported from Zoho Invoice sync"
+                db.add(existing)
+                persist_metrics(db, existing)
+                updated_count += 1
+            else:
+                skipped_existing_reports += 1
             continue
 
         report = WeeklyReport(
@@ -247,6 +293,10 @@ async def sync_zoho_invoices_to_weekly_reports(
 
     connection.last_sync_at = _utcnow()
     db.add(connection)
+
+    company.sales_source = "zoho"
+    db.add(company)
+
     db.commit()
 
     return {
@@ -255,5 +305,6 @@ async def sync_zoho_invoices_to_weekly_reports(
         "days_back": days_back,
         "weeks_detected": len(weekly_totals),
         "created_reports": created_count,
-        "skipped_existing_reports": skipped_count,
+        "updated_reports": updated_count,
+        "skipped_existing_reports": skipped_existing_reports,
     }
