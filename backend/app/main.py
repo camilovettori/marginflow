@@ -13,6 +13,9 @@ from app.routes.tenants import router as tenants_router
 from app.routes.companies import router as companies_router
 from app.routes.auth import router as auth_router
 
+from app.api.tenant_members import router as tenant_members_router
+from app.routes.zoho import router as zoho_router
+
 app = FastAPI(title=f"{APP_NAME} API")
 
 app.add_middleware(
@@ -35,7 +38,8 @@ app.include_router(dashboard_router)
 app.include_router(auth_router)
 app.include_router(tenants_router)
 app.include_router(companies_router)
-
+app.include_router(tenant_members_router)
+app.include_router(zoho_router)
 @app.get("/health")
 def health_check():
     return {"status": "ok"}

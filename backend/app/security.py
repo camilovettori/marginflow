@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -36,6 +38,11 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return pwd_context.verify(password, password_hash)
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def create_access_token(*, user_id: UUID, tenant_id: UUID | None) -> str:

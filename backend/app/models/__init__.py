@@ -6,3 +6,4 @@ from app.models.weekly_metrics import WeeklyMetrics
 from app.models.user import User
 from app.models.tenant_user import TenantUser
 from app.models.refresh_token import RefreshToken
+from app.models.zoho_connection import ZohoConnection

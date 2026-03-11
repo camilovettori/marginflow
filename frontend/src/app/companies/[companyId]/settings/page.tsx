@@ -1,22 +1,29 @@
 "use client"
 
+import UserManagementCard from "@/components/user-management-card"
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { deleteCompany, getCompanyById, updateCompany, type Company } from "@/services/api"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import {
+  deleteCompany,
+  getCompanyById,
+  getZohoConnectUrl,
+  updateCompany,
+  type Company,
+} from "@/services/api"
+import {
+  AlertTriangle,
   ArrowLeft,
   BarChart3,
   Bell,
   Building2,
+  Lock,
   Plus,
   Save,
   Search,
   Settings,
   Trash2,
 } from "lucide-react"
-
-
 
 function slugify(value: string) {
   return value
@@ -54,9 +61,31 @@ function Field({
   )
 }
 
+function ReadOnlyField({
+  label,
+  value,
+  helper,
+}: {
+  label: string
+  value: string
+  helper?: string
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
+      <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+        <span className="truncate">{value || "—"}</span>
+        <Lock size={15} className="ml-3 shrink-0 text-zinc-400" />
+      </div>
+      {helper && <p className="mt-2 text-xs text-zinc-500">{helper}</p>}
+    </div>
+  )
+}
+
 export default function CompanySettingsPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const companyId = params.companyId as string
 
   const [company, setCompany] = useState<Company | null>(null)
@@ -72,10 +101,16 @@ export default function CompanySettingsPage() {
   const [zohoOrgId, setZohoOrgId] = useState("")
   const [integrationNotes, setIntegrationNotes] = useState("")
 
+  const [deleteConfirmName, setDeleteConfirmName] = useState("")
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const zohoConnected = searchParams.get("zoho_connected") === "1"
+  const zohoOrgPending = searchParams.get("zoho_org_pending") === "1"
+  const zohoError = searchParams.get("zoho_error")
 
   useEffect(() => {
     async function loadCompany() {
@@ -83,10 +118,9 @@ export default function CompanySettingsPage() {
         setLoading(true)
         setError(null)
 
-const companyData = await getCompanyById(companyId)        
-    
-         setCompany(companyData)
+        const companyData = await getCompanyById(companyId)
 
+        setCompany(companyData)
         setName(companyData.name ?? "")
         setSlug(companyData.slug ?? "")
         setAddress(companyData.address ?? "")
@@ -125,18 +159,18 @@ const companyData = await getCompanyById(companyId)
       setSaving(true)
 
       const updated = await updateCompany(companyId, {
-  name: name.trim(),
-  slug: slug.trim(),
-  address: address.trim() || null,
-  contact_name: contactName.trim() || null,
-  phone: phone.trim() || null,
-  email: email.trim() || null,
-  sales_source: salesSource,
-  square_location_id:
-    salesSource === "square" ? squareLocationId.trim() || null : null,
-  zoho_org_id: salesSource === "zoho" ? zohoOrgId.trim() || null : null,
-  integration_notes: integrationNotes.trim() || null,
-})
+        name: name.trim(),
+        slug: slug.trim(),
+        address: address.trim() || null,
+        contact_name: contactName.trim() || null,
+        phone: phone.trim() || null,
+        email: email.trim() || null,
+        sales_source: salesSource,
+        square_location_id:
+          salesSource === "square" ? squareLocationId.trim() || null : null,
+        zoho_org_id: salesSource === "zoho" ? zohoOrgId.trim() || null : null,
+        integration_notes: integrationNotes.trim() || null,
+      })
 
       setCompany(updated)
       router.push(`/companies/${companyId}`)
@@ -148,13 +182,17 @@ const companyData = await getCompanyById(companyId)
     }
   }
 
+  function handleConnectZoho() {
+    window.location.href = getZohoConnectUrl(companyId)
+  }
+
   async function handleDelete() {
     try {
-      const confirmed = window.confirm(
-        "Delete this company? This action cannot be undone and may remove associated data."
-      )
+      if (!company) return
 
-      if (!confirmed) return
+      if (deleteConfirmName.trim() !== company.name.trim()) {
+        throw new Error("Type the company name exactly to enable deletion.")
+      }
 
       setError(null)
       setDeleting(true)
@@ -167,6 +205,75 @@ const companyData = await getCompanyById(companyId)
     } finally {
       setDeleting(false)
     }
+  }
+
+  function renderZohoStatusBadge() {
+    if (zohoOrgId) {
+      return (
+        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-emerald-700">
+          Org linked
+        </span>
+      )
+    }
+
+    if (zohoConnected && zohoOrgPending) {
+      return (
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-amber-700">
+          Connected, org pending
+        </span>
+      )
+    }
+
+    if (zohoError) {
+      return (
+        <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-rose-700">
+          Connection failed
+        </span>
+      )
+    }
+
+    if (integrationNotes.toLowerCase().includes("zoho connected")) {
+      return (
+        <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-sky-700">
+          Connected
+        </span>
+      )
+    }
+
+    return (
+      <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+        Not connected yet
+      </span>
+    )
+  }
+
+  function renderZohoHelperMessage() {
+    if (zohoError) {
+      return (
+        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          Zoho connection failed. Please try again or review the Zoho OAuth configuration.
+        </div>
+      )
+    }
+
+    if (zohoConnected && zohoOrgPending) {
+      return (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          Zoho authorization succeeded, but no active Zoho Invoice organization was found on this
+          account yet.
+        </div>
+      )
+    }
+
+    if (zohoOrgId) {
+      return (
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          Zoho Invoice is connected and ready for historical sales sync.
+        </div>
+      )
+    }
+
+    return null
   }
 
   return (
@@ -223,7 +330,7 @@ const companyData = await getCompanyById(companyId)
           <div className="mt-8 rounded-[28px] border border-white/70 bg-white/60 p-5 shadow-sm">
             <p className="text-sm font-semibold text-zinc-950">Company Settings</p>
             <p className="mt-2 text-sm leading-6 text-zinc-500">
-              Edit company details, configure sales source, and manage deletion.
+              Edit company details, integrations, access control, and administrative actions.
             </p>
           </div>
 
@@ -244,15 +351,22 @@ const companyData = await getCompanyById(companyId)
                   className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50"
                 >
                   <ArrowLeft size={16} />
-                  Back to Company
+                  Back to {company?.name ?? "Company"}
                 </Link>
               </div>
 
-              <h2 className="text-5xl font-semibold tracking-tight text-zinc-950">
-                Company Settings
-              </h2>
-              <p className="mt-3 text-base text-zinc-500">
-                Manage this company’s details, integrations, and administrative actions.
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-5xl font-semibold tracking-tight text-zinc-950">
+                  Company Settings
+                </h2>
+                <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500 shadow-sm">
+                  {company?.name ?? "Workspace"}
+                </span>
+              </div>
+
+              <p className="mt-3 max-w-3xl text-base leading-7 text-zinc-500">
+                Manage company details, sales-source configuration, team access, and destructive
+                actions from one place.
               </p>
             </div>
 
@@ -292,7 +406,8 @@ const companyData = await getCompanyById(companyId)
                     Company Details
                   </h3>
                   <p className="mt-1.5 text-sm text-zinc-500">
-                    Keep company information accurate and up to date.
+                    Keep company information accurate, client-facing, and consistent across the
+                    workspace.
                   </p>
                 </div>
 
@@ -305,11 +420,10 @@ const companyData = await getCompanyById(companyId)
                       placeholder="Company name"
                     />
 
-                    <Field
+                    <ReadOnlyField
                       label="Slug"
-                      value={slug}
-                      onChange={setSlug}
-                      placeholder={suggestedSlug || "company-slug"}
+                      value={slug || suggestedSlug || "company-slug"}
+                      helper="The slug is treated as a stable internal identifier and is not editable here."
                     />
 
                     <Field
@@ -350,7 +464,7 @@ const companyData = await getCompanyById(companyId)
                     Sales Source
                   </h3>
                   <p className="mt-1.5 text-sm text-zinc-500">
-                    Choose how this company should provide sales data to MarginFlow.
+                    Choose how this company will provide sales data to MarginFlow.
                   </p>
                 </div>
 
@@ -396,8 +510,9 @@ const companyData = await getCompanyById(companyId)
                       <div className="rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5 xl:col-span-2">
                         <h4 className="text-lg font-semibold text-zinc-950">Manual Sales Entry</h4>
                         <p className="mt-2 text-sm leading-6 text-zinc-600">
-                          Weekly sales will be entered manually in the report form. This is the
-                          default and simplest setup.
+                          Weekly sales are entered manually through the reporting workflow. This is
+                          the fastest way to get started and the most reliable setup while automatic
+                          connectors are still being prepared.
                         </p>
                       </div>
                     )}
@@ -408,13 +523,13 @@ const companyData = await getCompanyById(companyId)
                           label="Square Location ID"
                           value={squareLocationId}
                           onChange={setSquareLocationId}
-                          placeholder="Square location/store reference"
+                          placeholder="Square location / store reference"
                         />
                         <Field
                           label="Integration Notes"
                           value={integrationNotes}
                           onChange={setIntegrationNotes}
-                          placeholder="Optional Square notes or setup reference"
+                          placeholder="Optional setup note or internal reference"
                         />
                       </>
                     )}
@@ -425,24 +540,49 @@ const companyData = await getCompanyById(companyId)
                           label="Zoho Org / Reference ID"
                           value={zohoOrgId}
                           onChange={setZohoOrgId}
-                          placeholder="Zoho org ID or integration reference"
+                          placeholder="Zoho organization ID"
                         />
+
                         <Field
                           label="Integration Notes"
                           value={integrationNotes}
                           onChange={setIntegrationNotes}
-                          placeholder="Optional Zoho notes or setup reference"
+                          placeholder="Optional setup note or internal reference"
                         />
+
+                        <div className="xl:col-span-2 rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5">
+                          <h4 className="text-lg font-semibold text-zinc-950">
+                            Connect Zoho Invoice
+                          </h4>
+                          <p className="mt-2 text-sm leading-6 text-zinc-600">
+                            Connect this company to Zoho Invoice to authorize access and import
+                            sales history.
+                          </p>
+
+                          <div className="mt-5 flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={handleConnectZoho}
+                              className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:opacity-95"
+                            >
+                              Connect Zoho Invoice
+                            </button>
+
+                            {renderZohoStatusBadge()}
+                          </div>
+
+                          {renderZohoHelperMessage()}
+                        </div>
                       </>
                     )}
                   </div>
 
                   <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50/60 p-5">
-                    <h4 className="text-lg font-semibold text-zinc-950">Integration Roadmap</h4>
+                    <h4 className="text-lg font-semibold text-zinc-950">Integration roadmap</h4>
                     <p className="mt-2 text-sm leading-6 text-zinc-600">
-                      This now saves the intended sales source and integration references in proper
-                      company fields. Next step is connecting OAuth and automatic sales import for
-                      Square and Zoho.
+                      Square and Zoho connectivity will be added next. For now, this company can
+                      continue operating with manual weekly sales entry while the integration layer
+                      is finalized.
                     </p>
                   </div>
 
@@ -459,28 +599,57 @@ const companyData = await getCompanyById(companyId)
                 </div>
               </div>
 
+              {company?.tenant_id && <UserManagementCard tenantId={company.tenant_id} />}
+
               <div className="mt-8 rounded-[28px] border border-rose-200 bg-white shadow-sm">
                 <div className="border-b border-rose-100 px-7 py-6">
-                  <h3 className="text-[1.9rem] font-semibold tracking-tight text-rose-700">
-                    Danger Zone
-                  </h3>
-                  <p className="mt-1.5 text-sm text-zinc-500">
-                    Destructive actions should be used carefully.
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-700">
+                      <AlertTriangle size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-[1.9rem] font-semibold tracking-tight text-rose-700">
+                        Danger Zone
+                      </h3>
+                      <p className="mt-1.5 text-sm text-zinc-500">
+                        Destructive actions should be used carefully and deliberately.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-6">
                   <div className="rounded-3xl border border-rose-200 bg-rose-50/60 p-5">
                     <h4 className="text-lg font-semibold text-zinc-950">Delete Company</h4>
                     <p className="mt-2 text-sm leading-6 text-zinc-600">
-                      This permanently deletes the company. If related reports exist, this may also
-                      remove associated data depending on your database rules.
+                      This permanently deletes the company. If related reports exist, associated
+                      data may also be removed depending on your database rules. This action cannot
+                      be undone.
                     </p>
+
+                    <div className="mt-5 max-w-xl">
+                      <label className="mb-2 block text-sm font-medium text-zinc-700">
+                        Type the company name to confirm
+                      </label>
+                      <input
+                        type="text"
+                        value={deleteConfirmName}
+                        onChange={(e) => setDeleteConfirmName(e.target.value)}
+                        placeholder={company?.name || "Company name"}
+                        className="w-full rounded-2xl border border-rose-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-rose-400"
+                      />
+                      <p className="mt-2 text-xs text-zinc-500">
+                        Required value:{" "}
+                        <span className="font-medium text-zinc-700">{company?.name}</span>
+                      </p>
+                    </div>
 
                     <div className="mt-5">
                       <button
                         onClick={handleDelete}
-                        disabled={deleting}
+                        disabled={
+                          deleting || deleteConfirmName.trim() !== (company?.name ?? "").trim()
+                        }
                         className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Trash2 size={16} />

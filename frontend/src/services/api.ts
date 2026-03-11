@@ -68,6 +68,16 @@ export type CompanyUpdatePayload = {
   integration_notes?: string | null
 }
 
+export function getZohoConnectUrl(companyId: string): string {
+  const tenantId =
+    typeof window !== "undefined" ? localStorage.getItem("mf_tenant_id") : null
+
+  if (!tenantId) {
+    throw new Error("No active tenant selected.")
+  }
+
+  return `${API_URL}/api/integrations/zoho/connect/${companyId}?tenant_id=${tenantId}`
+}
 export type DashboardWeek = {
   week_ending: string
   sales_inc_vat: number
@@ -150,6 +160,30 @@ export type WeeklyReportResponse = {
   vat_due: number
   notes?: string | null
   created_at?: string
+}
+
+export type TenantMember = {
+  user_id: string
+  email: string
+  full_name: string | null
+  role: string
+  is_active: boolean
+}
+
+export type TenantMemberCreatePayload = {
+  email: string
+  full_name?: string | null
+  role: string
+}
+
+export type TenantMemberCreateResponse = {
+  user_id: string
+  email: string
+  temporary_password: string | null
+}
+
+export type TenantMemberRoleUpdatePayload = {
+  role: string
 }
 
 const ACCESS_TOKEN_KEY = "marginflow_access_token"
@@ -436,6 +470,53 @@ export async function createWeeklyReport(
     method: "POST",
     body: JSON.stringify(payload),
   })
+}
+
+export async function getTenantMembers(
+  tenantId: string
+): Promise<TenantMember[]> {
+  return authFetch<TenantMember[]>(`/api/tenants/${tenantId}/members`, {
+    method: "GET",
+  })
+}
+
+export async function createTenantMember(
+  tenantId: string,
+  payload: TenantMemberCreatePayload
+): Promise<TenantMemberCreateResponse> {
+  return authFetch<TenantMemberCreateResponse>(
+    `/api/tenants/${tenantId}/members`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
+export async function updateTenantMemberRole(
+  tenantId: string,
+  userId: string,
+  payload: TenantMemberRoleUpdatePayload
+): Promise<TenantMember> {
+  return authFetch<TenantMember>(
+    `/api/tenants/${tenantId}/members/${userId}/role`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
+export async function removeTenantMember(
+  tenantId: string,
+  userId: string
+): Promise<{ success: boolean }> {
+  return authFetch<{ success: boolean }>(
+    `/api/tenants/${tenantId}/members/${userId}`,
+    {
+      method: "DELETE",
+    }
+  )
 }
 
 export type RegisterResponse = {
