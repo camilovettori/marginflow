@@ -68,6 +68,18 @@ export type CompanyUpdatePayload = {
   integration_notes?: string | null
 }
 
+export async function syncZohoSales(
+  companyId: string,
+  daysBack = 180
+): Promise<ZohoSyncResponse> {
+  return authFetch<ZohoSyncResponse>(
+    `/api/integrations/zoho/sync/${companyId}?days_back=${daysBack}`,
+    {
+      method: "POST",
+    }
+  )
+}
+
 export function getZohoConnectUrl(companyId: string): string {
   const tenantId =
     typeof window !== "undefined" ? localStorage.getItem("mf_tenant_id") : null
@@ -184,6 +196,15 @@ export type TenantMemberCreateResponse = {
 
 export type TenantMemberRoleUpdatePayload = {
   role: string
+}
+
+export type ZohoSyncResponse = {
+  success: boolean
+  company_id: string
+  days_back: number
+  weeks_detected: number
+  created_reports: number
+  skipped_existing_reports: number
 }
 
 const ACCESS_TOKEN_KEY = "marginflow_access_token"

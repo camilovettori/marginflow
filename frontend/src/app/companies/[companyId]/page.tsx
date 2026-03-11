@@ -7,6 +7,7 @@ import {
   getCompanies,
   getDashboard,
   getMe,
+  syncZohoSales,
   type Company,
   type DashboardData,
 } from "@/services/api"
@@ -25,6 +26,7 @@ import {
   Building2,
   Lightbulb,
   Plus,
+  RefreshCw,
   Settings,
   Target,
 } from "lucide-react"
@@ -151,56 +153,60 @@ export default function CompanyPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true)
-        setError(null)
+  const [syncingZoho, setSyncingZoho] = useState(false)
+  const [zohoSyncMessage, setZohoSyncMessage] = useState<string | null>(null)
+  const [zohoSyncError, setZohoSyncError] = useState<string | null>(null)
 
-        const meData = await getMe()
+  async function loadCompanyPageData() {
+    try {
+      setLoading(true)
+      setError(null)
 
-        if (!meData.tenant_id) {
-          router.push("/login")
-          return
-        }
+      const meData = await getMe()
 
-        const companiesData = await getCompanies()
-        setCompanies(companiesData)
-
-        const companyData = companiesData.find((c) => c.id === companyId)
-
-        if (!companyData) {
-          setError("Company not found or not accessible in this tenant.")
-          return
-        }
-
-        setCompany(companyData)
-
-        const dashboardData = await getDashboard(companyId)
-        setDashboard(dashboardData)
-      } catch (err) {
-        console.error("Company page error:", err)
-
-        const message =
-          err instanceof Error ? err.message : "Failed to load company page"
-
-        if (
-          message.toLowerCase().includes("session expired") ||
-          message.toLowerCase().includes("401") ||
-          message.toLowerCase().includes("missing bearer token") ||
-          message.toLowerCase().includes("invalid token")
-        ) {
-          router.push("/login")
-          return
-        }
-
-        setError(message)
-      } finally {
-        setLoading(false)
+      if (!meData.tenant_id) {
+        router.push("/login")
+        return
       }
-    }
 
-    loadData()
+      const companiesData = await getCompanies()
+      setCompanies(companiesData)
+
+      const companyData = companiesData.find((c) => c.id === companyId)
+
+      if (!companyData) {
+        setError("Company not found or not accessible in this tenant.")
+        return
+      }
+
+      setCompany(companyData)
+
+      const dashboardData = await getDashboard(companyId)
+      setDashboard(dashboardData)
+    } catch (err) {
+      console.error("Company page error:", err)
+
+      const message =
+        err instanceof Error ? err.message : "Failed to load company page"
+
+      if (
+        message.toLowerCase().includes("session expired") ||
+        message.toLowerCase().includes("401") ||
+        message.toLowerCase().includes("missing bearer token") ||
+        message.toLowerCase().includes("invalid token")
+      ) {
+        router.push("/login")
+        return
+      }
+
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadCompanyPageData()
   }, [companyId, router])
 
   const wagesPct = useMemo(() => {
@@ -329,6 +335,29 @@ export default function CompanyPage() {
     return "This company is relatively stable. Focus next on improving net profit conversion week by week."
   }, [dashboard, wagesPct, foodCostPct, cashFlow])
 
+  async function handleZohoSync() {
+    try {
+      setZohoSyncError(null)
+      setZohoSyncMessage(null)
+      setSyncingZoho(true)
+
+      const result = await syncZohoSales(companyId, 180)
+
+      setZohoSyncMessage(
+        `Zoho sync complete. ${result.created_reports} weekly reports created, ${result.skipped_existing_reports} existing weeks skipped.`
+      )
+
+      await loadCompanyPageData()
+    } catch (err) {
+      console.error("Zoho sync error:", err)
+      setZohoSyncError(
+        err instanceof Error ? err.message : "Failed to sync Zoho sales."
+      )
+    } finally {
+      setSyncingZoho(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.9),_rgba(244,244,245,1)_40%,_rgba(240,240,243,1)_100%)] text-zinc-950">
       <div className="grid min-h-screen grid-cols-1 xl:grid-cols-[300px_1fr]">
@@ -418,6 +447,17 @@ export default function CompanyPage() {
             </div>
 
             <div className="flex items-center gap-3 self-start">
+              {company?.sales_source === "zoho" && (
+                <button
+                  onClick={handleZohoSync}
+                  disabled={syncingZoho}
+                  className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshCw size={16} className={syncingZoho ? "animate-spin" : ""} />
+                  {syncingZoho ? "Syncing Zoho..." : "Sync Zoho Sales"}
+                </button>
+              )}
+
               <Link
                 href={`/companies/${companyId}/reports/new`}
                 className="flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
@@ -439,6 +479,18 @@ export default function CompanyPage() {
           {error && (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
               {error}
+            </div>
+          )}
+
+          {zohoSyncError && (
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+              {zohoSyncError}
+            </div>
+          )}
+
+          {zohoSyncMessage && (
+            <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
+              {zohoSyncMessage}
             </div>
           )}
 
@@ -496,7 +548,7 @@ export default function CompanyPage() {
                 />
               </div>
 
-              <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-3">
+              <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-3)">
                 <MetricCard
                   title="Profit Conversion"
                   value={fmtPct(netProfitConversion)}
