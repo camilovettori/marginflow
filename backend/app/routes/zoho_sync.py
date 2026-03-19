@@ -177,13 +177,46 @@ async def _fetch_all_invoices(
     return invoices
 
 
-@router.post("/sync/{company_id}")
-async def sync_zoho_invoices_to_weekly_reports(
+def _build_weekly_totals(
+    *,
+    invoices: list[dict],
+    cutoff_date: date | None = None,
+) -> dict[date, dict[str, Decimal]]:
+    weekly_totals: dict[date, dict[str, Decimal]] = {}
+
+    for invoice in invoices:
+        invoice_date = _parse_invoice_date(
+            invoice.get("date") or invoice.get("invoice_date")
+        )
+        if not invoice_date:
+            continue
+
+        if cutoff_date and invoice_date < cutoff_date:
+            continue
+
+        week_ending = _week_ending_sunday(invoice_date)
+
+        sales_inc_vat = _to_decimal(invoice.get("total"))
+        sales_ex_vat = _to_decimal(invoice.get("sub_total") or invoice.get("subtotal"))
+
+        if week_ending not in weekly_totals:
+            weekly_totals[week_ending] = {
+                "sales_inc_vat": Decimal("0.00"),
+                "sales_ex_vat": Decimal("0.00"),
+            }
+
+        weekly_totals[week_ending]["sales_inc_vat"] += sales_inc_vat
+        weekly_totals[week_ending]["sales_ex_vat"] += sales_ex_vat
+
+    return weekly_totals
+
+
+async def _get_company_and_connection(
+    *,
+    db: Session,
+    tenant_id: UUID,
     company_id: UUID,
-    days_back: int = Query(default=180, ge=7, le=730),
-    db: Session = Depends(get_db),
-    tenant_id: UUID = Depends(get_tenant_id),
-):
+) -> tuple[Company, ZohoConnection, str]:
     company = (
         db.query(Company)
         .filter(Company.id == company_id, Company.tenant_id == tenant_id)
@@ -210,6 +243,70 @@ async def sync_zoho_invoices_to_weekly_reports(
             detail="Zoho is connected but no valid organization ID is saved yet",
         )
 
+    return company, connection, organization_id
+
+
+@router.get("/prefill/{company_id}")
+async def get_zoho_weekly_prefill(
+    company_id: UUID,
+    week_ending: date = Query(...),
+    db: Session = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    company, connection, organization_id = await _get_company_and_connection(
+        db=db,
+        tenant_id=tenant_id,
+        company_id=company_id,
+    )
+
+    access_token = await _get_valid_access_token(db, connection)
+    invoices = await _fetch_all_invoices(
+        access_token=access_token,
+        organization_id=organization_id,
+    )
+
+    weekly_totals = _build_weekly_totals(invoices=invoices, cutoff_date=None)
+    totals = weekly_totals.get(week_ending)
+
+    if not totals:
+        return {
+            "success": True,
+            "company_id": str(company_id),
+            "company_name": company.name,
+            "week_ending": str(week_ending),
+            "source": "zoho",
+            "found": False,
+            "sales_inc_vat": 0,
+            "sales_ex_vat": 0,
+            "notes": "No Zoho invoice data found for this week.",
+        }
+
+    return {
+        "success": True,
+        "company_id": str(company_id),
+        "company_name": company.name,
+        "week_ending": str(week_ending),
+        "source": "zoho",
+        "found": True,
+        "sales_inc_vat": float(totals["sales_inc_vat"]),
+        "sales_ex_vat": float(totals["sales_ex_vat"]),
+        "notes": "Imported from Zoho Invoice prefill",
+    }
+
+
+@router.post("/sync/{company_id}")
+async def sync_zoho_invoices_to_weekly_reports(
+    company_id: UUID,
+    days_back: int = Query(default=180, ge=7, le=730),
+    db: Session = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    company, connection, organization_id = await _get_company_and_connection(
+        db=db,
+        tenant_id=tenant_id,
+        company_id=company_id,
+    )
+
     access_token = await _get_valid_access_token(db, connection)
     invoices = await _fetch_all_invoices(
         access_token=access_token,
@@ -217,31 +314,10 @@ async def sync_zoho_invoices_to_weekly_reports(
     )
 
     cutoff_date = date.today() - timedelta(days=days_back)
-    weekly_totals: dict[date, dict[str, Decimal]] = {}
-
-    for invoice in invoices:
-        invoice_date = _parse_invoice_date(
-            invoice.get("date") or invoice.get("invoice_date")
-        )
-        if not invoice_date or invoice_date < cutoff_date:
-            continue
-
-        week_ending = _week_ending_sunday(invoice_date)
-
-        # Zoho Invoice:
-        # total = final amount incl VAT
-        # sub_total = subtotal before tax
-        sales_inc_vat = _to_decimal(invoice.get("total"))
-        sales_ex_vat = _to_decimal(invoice.get("sub_total") or invoice.get("subtotal"))
-
-        if week_ending not in weekly_totals:
-            weekly_totals[week_ending] = {
-                "sales_inc_vat": Decimal("0.00"),
-                "sales_ex_vat": Decimal("0.00"),
-            }
-
-        weekly_totals[week_ending]["sales_inc_vat"] += sales_inc_vat
-        weekly_totals[week_ending]["sales_ex_vat"] += sales_ex_vat
+    weekly_totals = _build_weekly_totals(
+        invoices=invoices,
+        cutoff_date=cutoff_date,
+    )
 
     created_count = 0
     updated_count = 0

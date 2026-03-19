@@ -24,6 +24,8 @@ import {
   AlertTriangle,
   BarChart3,
   Building2,
+  CalendarDays,
+  FileText,
   Lightbulb,
   Plus,
   RefreshCw,
@@ -416,8 +418,25 @@ export default function CompanyPage() {
               </Link>
             </div>
 
-            <div className="rounded-2xl px-4 py-3 text-sm text-zinc-500">Weekly Reports</div>
-            <div className="rounded-2xl px-4 py-3 text-sm text-zinc-500">Analytics</div>
+            <Link
+              href={`/companies/${companyId}/reports`}
+              className="block rounded-2xl px-4 py-3 text-sm text-zinc-500 transition hover:bg-white/70"
+            >
+              <div className="flex items-center gap-3">
+                <FileText size={16} />
+                Weekly Reports
+              </div>
+            </Link>
+
+            <Link
+              href={`/companies/${companyId}/analytics`}
+              className="block rounded-2xl px-4 py-3 text-sm text-zinc-500 transition hover:bg-white/70"
+            >
+              <div className="flex items-center gap-3">
+                <CalendarDays size={16} />
+                Analytics
+              </div>
+            </Link>
           </nav>
 
           <div className="mt-8 rounded-[28px] border border-white/70 bg-white/60 p-5 shadow-sm">
@@ -428,10 +447,13 @@ export default function CompanyPage() {
           </div>
 
           <div className="mt-auto pt-8">
-            <button className="flex w-full items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 text-sm text-zinc-600 shadow-sm ring-1 ring-zinc-200 transition hover:bg-white">
+            <Link
+              href={`/companies/${companyId}/settings`}
+              className="flex w-full items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 text-sm text-zinc-600 shadow-sm ring-1 ring-zinc-200 transition hover:bg-white"
+            >
               <Settings size={16} />
               Settings
-            </button>
+            </Link>
           </div>
         </aside>
 
@@ -548,7 +570,7 @@ export default function CompanyPage() {
                 />
               </div>
 
-              <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-3)">
+              <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-3">
                 <MetricCard
                   title="Profit Conversion"
                   value={fmtPct(netProfitConversion)}
@@ -571,11 +593,7 @@ export default function CompanyPage() {
 
                 <MetricCard
                   title="Trend vs Previous Week"
-                  value={
-                    previousWeekTrend
-                      ? fmtDeltaPct(previousWeekTrend.deltaPct)
-                      : "N/A"
-                  }
+                  value={previousWeekTrend ? fmtDeltaPct(previousWeekTrend.deltaPct) : "N/A"}
                   subtitle={
                     previousWeekTrend
                       ? `${fmtMoney(previousWeekTrend.previousValue)} → ${fmtMoney(previousWeekTrend.currentValue)}`

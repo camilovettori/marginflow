@@ -68,16 +68,25 @@ export type CompanyUpdatePayload = {
   integration_notes?: string | null
 }
 
-export async function syncZohoSales(
-  companyId: string,
-  daysBack = 180
-): Promise<ZohoSyncResponse> {
-  return authFetch<ZohoSyncResponse>(
-    `/api/integrations/zoho/sync/${companyId}?days_back=${daysBack}`,
-    {
-      method: "POST",
-    }
-  )
+export type ZohoSyncResponse = {
+  success: boolean
+  company_id: string
+  days_back: number
+  weeks_detected: number
+  created_reports: number
+  skipped_existing_reports: number
+}
+
+export type ZohoWeeklyPrefillResponse = {
+  success: boolean
+  company_id: string
+  company_name: string
+  week_ending: string
+  source: string
+  found: boolean
+  sales_inc_vat: number
+  sales_ex_vat: number
+  notes?: string | null
 }
 
 export function getZohoConnectUrl(companyId: string): string {
@@ -90,6 +99,7 @@ export function getZohoConnectUrl(companyId: string): string {
 
   return `${API_URL}/api/integrations/zoho/connect/${companyId}?tenant_id=${tenantId}`
 }
+
 export type DashboardWeek = {
   week_ending: string
   sales_inc_vat: number
@@ -156,9 +166,7 @@ export type WeeklyReportCreatePayload = {
   notes?: string
 }
 
-export type WeeklyReportResponse = {
-  id: string
-  tenant_id: string
+export type WeeklyReportUpdatePayload = {
   company_id: string
   week_ending: string
   sales_inc_vat: number
@@ -170,8 +178,70 @@ export type WeeklyReportResponse = {
   variable_costs: number
   loans_hp: number
   vat_due: number
+  notes?: string
+}
+
+export type WeeklyReportResponse = {
+  id: string
+  tenant_id: string
+  company_id: string
+
+  company_name?: string | null
+
+  week_ending: string
+  week_start?: string | null
+  week_end?: string | null
+  iso_week?: number | null
+  iso_year?: number | null
+
+  sales_inc_vat: number
+  sales_ex_vat: number
+  wages: number
+  holiday_pay: number
+  food_cost: number
+  fixed_costs: number
+  variable_costs: number
+  loans_hp: number
+  vat_due: number
+
+  gross_profit?: number | null
+  gross_margin_pct?: number | null
+  net_profit?: number | null
+  net_margin_pct?: number | null
+  labour_pct?: number | null
+
+  source?: string | null
   notes?: string | null
+
+  insights?: string[]
+  recommendations?: string[]
+
   created_at?: string
+  updated_at?: string
+}
+
+export type WeeklyReportListItem = WeeklyReportResponse
+
+export type WeeklyReportDetail = WeeklyReportResponse
+
+export type WeeklyReportsSummary = {
+  total_reports: number
+  imported_reports: number
+  manual_reports: number
+  total_sales_inc_vat: number
+  total_sales_ex_vat: number
+  total_wages: number
+  total_net_profit: number
+}
+
+export type WeeklyReportPdfResponse = {
+  download_url: string
+  report: WeeklyReportDetail
+}
+
+export type WeeklyReportEmailResponse = {
+  success: boolean
+  message?: string | null
 }
 
 export type TenantMember = {
@@ -196,15 +266,6 @@ export type TenantMemberCreateResponse = {
 
 export type TenantMemberRoleUpdatePayload = {
   role: string
-}
-
-export type ZohoSyncResponse = {
-  success: boolean
-  company_id: string
-  days_back: number
-  weeks_detected: number
-  created_reports: number
-  skipped_existing_reports: number
 }
 
 const ACCESS_TOKEN_KEY = "marginflow_access_token"
@@ -484,6 +545,36 @@ export async function deleteCompany(
   })
 }
 
+export async function getWeeklyReports(
+  companyId: string
+): Promise<WeeklyReportListItem[]> {
+  return authFetch<WeeklyReportListItem[]>(
+    `/api/weekly-reports/?company_id=${companyId}`,
+    {
+      method: "GET",
+    }
+  )
+}
+
+export async function getWeeklyReportsSummary(
+  companyId: string
+): Promise<WeeklyReportsSummary> {
+  return authFetch<WeeklyReportsSummary>(
+    `/api/weekly-reports/summary?company_id=${companyId}`,
+    {
+      method: "GET",
+    }
+  )
+}
+
+export async function getWeeklyReportById(
+  reportId: string
+): Promise<WeeklyReportDetail> {
+  return authFetch<WeeklyReportDetail>(`/api/weekly-reports/${reportId}`, {
+    method: "GET",
+  })
+}
+
 export async function createWeeklyReport(
   payload: WeeklyReportCreatePayload
 ): Promise<WeeklyReportResponse> {
@@ -491,6 +582,62 @@ export async function createWeeklyReport(
     method: "POST",
     body: JSON.stringify(payload),
   })
+}
+
+export async function updateWeeklyReport(
+  reportId: string,
+  payload: WeeklyReportUpdatePayload
+): Promise<WeeklyReportDetail> {
+  return authFetch<WeeklyReportDetail>(`/api/weekly-reports/${reportId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function generateWeeklyReportPdf(
+  reportId: string
+): Promise<WeeklyReportPdfResponse> {
+  return authFetch<WeeklyReportPdfResponse>(
+    `/api/weekly-reports/${reportId}/generate-pdf`,
+    {
+      method: "POST",
+    }
+  )
+}
+
+export async function sendWeeklyReportEmail(
+  reportId: string
+): Promise<WeeklyReportEmailResponse> {
+  return authFetch<WeeklyReportEmailResponse>(
+    `/api/weekly-reports/${reportId}/send-email`,
+    {
+      method: "POST",
+    }
+  )
+}
+
+export async function syncZohoSales(
+  companyId: string,
+  daysBack = 180
+): Promise<ZohoSyncResponse> {
+  return authFetch<ZohoSyncResponse>(
+    `/api/integrations/zoho/sync/${companyId}?days_back=${daysBack}`,
+    {
+      method: "POST",
+    }
+  )
+}
+
+export async function getZohoWeeklyPrefill(
+  companyId: string,
+  weekEnding: string
+): Promise<ZohoWeeklyPrefillResponse> {
+  return authFetch<ZohoWeeklyPrefillResponse>(
+    `/api/integrations/zoho/prefill/${companyId}?week_ending=${weekEnding}`,
+    {
+      method: "GET",
+    }
+  )
 }
 
 export async function getTenantMembers(

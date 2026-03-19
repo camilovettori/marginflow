@@ -13,6 +13,10 @@ import {
   type MeResponse,
   type PortfolioData,
 } from "@/services/api"
+
+
+
+
 import {
   CartesianGrid,
   Legend,
@@ -32,6 +36,8 @@ import {
   Settings,
   TrendingUp,
 } from "lucide-react"
+
+import { FileText, CalendarDays } from "lucide-react"
 
 const CHART_COLORS = [
   "#60a5fa",
@@ -362,9 +368,8 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="rounded-2xl px-4 py-3 text-sm text-zinc-500">Weekly Reports</div>
-            <div className="rounded-2xl px-4 py-3 text-sm text-zinc-500">Analytics</div>
-          </nav>
+     <div className="rounded-2xl px-4 py-3 text-sm text-zinc-500">Weekly Reports</div>
+      <div className="rounded-2xl px-4 py-3 text-sm text-zinc-500">Analytics</div>        </nav>
 
           <div className="mt-8 rounded-[28px] border border-white/70 bg-white/60 p-5 shadow-sm">
             <p className="text-sm font-semibold text-zinc-950">Tenant Overview</p>

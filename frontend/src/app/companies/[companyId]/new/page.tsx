@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   createWeeklyReport,
   getCompanyById,
+  getZohoWeeklyPrefill,
   type Company,
 } from "@/services/api"
 import {
@@ -21,6 +22,7 @@ import {
   Trash2,
   Wallet,
   TrendingUp,
+  RefreshCw,
 } from "lucide-react"
 
 type CustomField = {
@@ -250,6 +252,11 @@ export default function NewWeeklyReportPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  const [prefillLoading, setPrefillLoading] = useState(false)
+  const [prefillMessage, setPrefillMessage] = useState<string | null>(null)
+  const [prefillApplied, setPrefillApplied] = useState(false)
+  const lastPrefillWeekRef = useRef<string>("")
+
   const [weekEnding, setWeekEnding] = useState("")
   const [salesIncVat, setSalesIncVat] = useState("")
   const [salesExVat, setSalesExVat] = useState("")
@@ -280,6 +287,54 @@ export default function NewWeeklyReportPage() {
 
     loadCompany()
   }, [companyId])
+
+  useEffect(() => {
+    async function tryZohoPrefill() {
+      if (!company) return
+      if (company.sales_source !== "zoho") return
+      if (!weekEnding) return
+      if (lastPrefillWeekRef.current === weekEnding) return
+
+      try {
+        setPrefillLoading(true)
+        setPrefillMessage(null)
+
+        const result = await getZohoWeeklyPrefill(companyId, weekEnding)
+        lastPrefillWeekRef.current = weekEnding
+
+        if (!result.found) {
+          setPrefillApplied(false)
+          setPrefillMessage("No Zoho invoice data found for this week.")
+          return
+        }
+
+        setSalesIncVat(String(result.sales_inc_vat || 0))
+        setSalesExVat(String(result.sales_ex_vat || 0))
+
+        setNotes((prev) => {
+          const current = (prev || "").trim()
+          const zohoNote = result.notes || "Imported from Zoho Invoice prefill"
+
+          if (current.toLowerCase().includes("zoho")) return prev
+          if (!current) return zohoNote
+          return `${zohoNote}\n\n${current}`
+        })
+
+        setPrefillApplied(true)
+        setPrefillMessage("Zoho sales prefill applied for the selected week.")
+      } catch (err) {
+        console.error("Zoho prefill error:", err)
+        setPrefillApplied(false)
+        setPrefillMessage(
+          err instanceof Error ? err.message : "Failed to load Zoho prefill."
+        )
+      } finally {
+        setPrefillLoading(false)
+      }
+    }
+
+    tryZohoPrefill()
+  }, [company, companyId, weekEnding])
 
   const isoWeekInfo = useMemo(() => getISOWeekInfo(weekEnding), [weekEnding])
 
@@ -333,11 +388,6 @@ export default function NewWeeklyReportPage() {
     return labourTotal / revenueBase
   }, [revenueBase, labourTotal])
 
-  const grossMarginPct = useMemo(() => {
-    if (revenueBase <= 0) return 0
-    return grossProfit / revenueBase
-  }, [revenueBase, grossProfit])
-
   const netMarginPct = useMemo(() => {
     if (revenueBase <= 0) return 0
     return netProfit / revenueBase
@@ -376,6 +426,7 @@ export default function NewWeeklyReportPage() {
         isoWeekInfo ? `ISO week: ${isoWeekInfo.isoWeek}/${isoWeekInfo.isoYear}` : "",
         `Food cost mode: ${foodCostMode}`,
         foodCostMode === "percent" ? `Food cost percent: ${foodCostPercentNum}%` : "",
+        company?.sales_source === "zoho" && prefillApplied ? "Source: Zoho prefill" : "",
         cleanedCustomSalesFields.length
           ? `Custom sales fields: ${JSON.stringify(cleanedCustomSalesFields)}`
           : "",
@@ -538,6 +589,21 @@ export default function NewWeeklyReportPage() {
             </div>
           )}
 
+          {prefillMessage && (
+            <div
+              className={`mb-6 rounded-2xl border p-4 ${
+                prefillApplied
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-sky-200 bg-sky-50 text-sky-700"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {prefillLoading && <RefreshCw size={16} className="animate-spin" />}
+                <span>{prefillMessage}</span>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               icon={<Wallet size={18} />}
@@ -580,7 +646,12 @@ export default function NewWeeklyReportPage() {
                     label="Week Ending"
                     type="date"
                     value={weekEnding}
-                    onChange={setWeekEnding}
+                    onChange={(value) => {
+                      setWeekEnding(value)
+                      setPrefillApplied(false)
+                      setPrefillMessage(null)
+                      lastPrefillWeekRef.current = ""
+                    }}
                   />
 
                   <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
@@ -781,7 +852,7 @@ export default function NewWeeklyReportPage() {
                   <MetricCard
                     icon={<TrendingUp size={18} />}
                     title="Gross Margin"
-                    value={formatPct(grossMarginPct)}
+                    value={formatPct(revenueBase > 0 ? grossProfit / revenueBase : 0)}
                     subtitle="Gross profit as % of revenue"
                   />
                   <MetricCard
@@ -824,10 +895,10 @@ export default function NewWeeklyReportPage() {
 
               <div className="rounded-[30px] border border-amber-200 bg-amber-50/70 p-6 shadow-sm">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-800">
-                  Honest note
+                  Zoho prefill
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-amber-900">
-                  Zoho auto-prefill is not in this recovered version yet because it was not present in the old file you sent. The layout is now restored and organized. Next step is to reconnect the Zoho sales prefill properly.
+                  If this company is connected to Zoho, selecting the week ending date will automatically try to prefill sales for that week.
                 </p>
               </div>
 
