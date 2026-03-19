@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from datetime import date, timedelta
 from uuid import UUID
 
@@ -17,6 +18,8 @@ from app.schemas.weekly_report import (
     WeeklyReportsSummaryResponse,
     WeeklyReportPdfResponse,
     WeeklyReportEmailResponse,
+    WeeklyReportBulkDeleteRequest,
+
 )
 from app.services.metrics_service import persist_metrics
 
@@ -255,6 +258,47 @@ def get_weekly_reports_summary(
     )
 
 
+@router.delete("/bulk")
+def delete_weekly_reports_bulk(
+    payload: WeeklyReportBulkDeleteRequest,
+    db: Session = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    if not payload.report_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No report IDs provided.",
+        )
+
+    reports = (
+        db.query(WeeklyReport)
+        .filter(
+            WeeklyReport.tenant_id == tenant_id,
+            WeeklyReport.id.in_(payload.report_ids),
+        )
+        .all()
+    )
+
+    if not reports:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No matching weekly reports found.",
+        )
+
+    deleted_ids: list[UUID] = []
+
+    for report in reports:
+        deleted_ids.append(report.id)
+        db.delete(report)
+
+    db.commit()
+
+    return {
+        "success": True,
+        "deleted_count": len(deleted_ids),
+        "deleted_report_ids": deleted_ids,
+    }
+
 @router.get("/{weekly_report_id}", response_model=WeeklyReportResponse)
 def get_weekly_report(
     weekly_report_id: UUID,
@@ -395,3 +439,4 @@ def send_weekly_report_email(
         success=True,
         message=f"Weekly report email queued for {company.email}.",
     )
+

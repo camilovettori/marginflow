@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
+  deleteWeeklyReportsBulk,
   getCompanies,
   getWeeklyReports,
   getWeeklyReportsSummary,
@@ -267,22 +268,27 @@ export default function CompanyWeeklyReportsPage() {
   }
 
   async function handleDeleteSelected() {
-    try {
-      setDeleteBusy(true)
-      setDeleteError(null)
+  try {
+    setDeleteBusy(true)
+    setDeleteError(null)
 
-      // UX pronta. Delete real depende de backend/API endpoint.
-      throw new Error(
-        "Delete action UI is ready, but the backend delete endpoint for weekly reports is not connected yet."
-      )
-    } catch (err) {
-      setDeleteError(
-        err instanceof Error ? err.message : "Failed to delete selected reports."
-      )
-    } finally {
-      setDeleteBusy(false)
+    if (selectedReportIds.length === 0) {
+      throw new Error("No weekly reports selected.")
     }
+
+    await deleteWeeklyReportsBulk(selectedReportIds)
+
+    setShowDeleteModal(false)
+    setSelectedIds({})
+    await loadData()
+  } catch (err) {
+    setDeleteError(
+      err instanceof Error ? err.message : "Failed to delete selected reports."
+    )
+  } finally {
+    setDeleteBusy(false)
   }
+}
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] text-zinc-950">
@@ -715,21 +721,20 @@ export default function CompanyWeeklyReportsPage() {
                   This action should permanently remove them.
                 </p>
                 <p className="mt-3 text-sm text-zinc-500">
-                  The UI is ready. The real delete action still needs the backend endpoint connected.
-                </p>
+  This action will permanently remove the selected weekly reports.
+</p>
               </div>
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false)
-                  setDeleteError(null)
-                }}
-                className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
-              >
-                Cancel
-              </button>
+             <button
+  onClick={handleDeleteSelected}
+  disabled={deleteBusy}
+  className="inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+>
+  <Trash2 size={15} />
+  {deleteBusy ? "Deleting..." : "Delete selected"}
+</button>
 
               <button
                 onClick={async () => {

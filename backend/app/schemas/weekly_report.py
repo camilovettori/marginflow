@@ -93,3 +93,8 @@ class WeeklyReportPdfResponse(BaseModel):
 class WeeklyReportEmailResponse(BaseModel):
     success: bool
     message: str | None = None
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+class WeeklyReportBulkDeleteRequest(BaseModel):
+    report_ids: list[UUID]    

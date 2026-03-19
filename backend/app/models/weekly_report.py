@@ -75,9 +75,12 @@ class WeeklyReport(Base):
     tenant = relationship("Tenant")
 
     metrics = relationship(
-    "WeeklyMetrics",
-    back_populates="report",
-)    
+        "WeeklyMetrics",
+        back_populates="report",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
 
     __table_args__ = (
         # Um report por semana por company dentro do tenant

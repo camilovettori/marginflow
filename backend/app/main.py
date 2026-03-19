@@ -12,21 +12,23 @@ from app.routes.dashboard import router as dashboard_router
 from app.routes.tenants import router as tenants_router
 from app.routes.companies import router as companies_router
 from app.routes.auth import router as auth_router
-
 from app.api.tenant_members import router as tenant_members_router
 from app.routes.zoho import router as zoho_router
 from app.routes.zoho_sync import router as zoho_sync_router
 
 app = FastAPI(title=f"{APP_NAME} API")
 
+allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.0.195:3000",
+    "https://marginflow-finance.vercel.app",
+    "https://www.marginflow-finance.vercel.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://192.168.0.195:3000",
-        "https://marginflow-finance.vercel.app",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,6 +48,8 @@ app.include_router(dashboard_router)
 # Integrations
 app.include_router(zoho_router)
 app.include_router(zoho_sync_router)
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}

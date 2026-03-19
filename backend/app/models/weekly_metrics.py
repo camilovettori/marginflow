@@ -75,9 +75,10 @@ class WeeklyMetrics(Base):
     tenant = relationship("Tenant")
     company = relationship("Company")
     report = relationship(
-    "WeeklyReport",
-    back_populates="metrics",
-)
+        "WeeklyReport",
+        back_populates="metrics",
+        passive_deletes=True,
+    )
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "company_id", "weekly_report_id", name="uq_weekly_metrics_tenant_company_report"),

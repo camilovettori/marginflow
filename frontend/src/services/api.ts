@@ -151,6 +151,12 @@ export type PortfolioData = {
   companies: PortfolioCompany[]
 }
 
+export type WeeklyReportsBulkDeleteResponse = {
+  success: boolean
+  deleted_count: number
+  deleted_report_ids: string[]
+}
+
 export type WeeklyReportCreatePayload = {
   company_id: string
   week_ending: string
@@ -591,6 +597,17 @@ export async function updateWeeklyReport(
   return authFetch<WeeklyReportDetail>(`/api/weekly-reports/${reportId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteWeeklyReportsBulk(
+  reportIds: string[]
+): Promise<WeeklyReportsBulkDeleteResponse> {
+  return authFetch<WeeklyReportsBulkDeleteResponse>("/api/weekly-reports/bulk", {
+    method: "DELETE",
+    body: JSON.stringify({
+      report_ids: reportIds,
+    }),
   })
 }
 
