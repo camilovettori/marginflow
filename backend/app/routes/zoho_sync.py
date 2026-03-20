@@ -52,11 +52,60 @@ def _week_ending_sunday(d: date) -> date:
     return d + timedelta(days=days_until_sunday)
 
 
+def _week_start_monday(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
+def _resolve_sync_range(
+    *,
+    preset: str | None,
+    week_ending: date | None,
+    date_from: date | None,
+    date_to: date | None,
+) -> tuple[date | None, date | None, str, date | None]:
+    today = date.today()
+    current_week_start = _week_start_monday(today)
+    current_week_end = _week_ending_sunday(today)
+
+    if preset == "this_week":
+        return current_week_start, current_week_end, "this_week", current_week_end
+
+    if preset == "last_week":
+        last_week_end = current_week_start - timedelta(days=1)
+        last_week_start = _week_start_monday(last_week_end)
+        return last_week_start, last_week_end, "last_week", last_week_end
+
+    if preset == "last_4_weeks":
+        start = current_week_start - timedelta(weeks=3)
+        return start, current_week_end, "last_4_weeks", None
+
+    if preset == "last_12_weeks":
+        start = current_week_start - timedelta(weeks=11)
+        return start, current_week_end, "last_12_weeks", None
+
+    if preset == "specific_week":
+        if not week_ending:
+            raise HTTPException(
+                status_code=400,
+                detail="week_ending is required when preset=specific_week",
+            )
+        start = _week_start_monday(week_ending)
+        end = _week_ending_sunday(week_ending)
+        return start, end, "specific_week", week_ending
+
+    if date_from and date_to:
+        if date_from > date_to:
+            raise HTTPException(
+                status_code=400,
+                detail="date_from cannot be after date_to",
+            )
+        return date_from, date_to, "custom_range", None
+
+    start = current_week_start - timedelta(weeks=3)
+    return start, current_week_end, "last_4_weeks", None
+
+
 def _is_safe_to_autoupdate(existing: WeeklyReport) -> bool:
-    """
-    Só atualiza automaticamente se o report ainda estiver praticamente 'virgem'
-    ou já tiver sido importado do Zoho antes.
-    """
     notes = (existing.notes or "").lower()
 
     was_imported_from_zoho = "zoho" in notes
@@ -87,7 +136,9 @@ def _is_safe_to_autoupdate(existing: WeeklyReport) -> bool:
     return False
 
 
-async def _refresh_access_token(connection: ZohoConnection) -> tuple[str, object | None]:
+async def _refresh_access_token(
+    connection: ZohoConnection,
+) -> tuple[str, object | None]:
     token_url = f"{ZOHO_ACCOUNTS_BASE}/oauth/v2/token"
 
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -112,7 +163,10 @@ async def _refresh_access_token(connection: ZohoConnection) -> tuple[str, object
     expires_in = data.get("expires_in")
 
     if not access_token:
-        raise HTTPException(status_code=400, detail="Zoho refresh did not return access token")
+        raise HTTPException(
+            status_code=400,
+            detail="Zoho refresh did not return access token",
+        )
 
     expires_at = None
     if expires_in:
@@ -124,7 +178,11 @@ async def _refresh_access_token(connection: ZohoConnection) -> tuple[str, object
 async def _get_valid_access_token(db: Session, connection: ZohoConnection) -> str:
     now = _utcnow()
 
-    if connection.access_token and connection.token_expires_at and connection.token_expires_at > now:
+    if (
+        connection.access_token
+        and connection.token_expires_at
+        and connection.token_expires_at > now
+    ):
         return connection.access_token
 
     access_token, expires_at = await _refresh_access_token(connection)
@@ -180,7 +238,8 @@ async def _fetch_all_invoices(
 def _build_weekly_totals(
     *,
     invoices: list[dict],
-    cutoff_date: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> dict[date, dict[str, Decimal]]:
     weekly_totals: dict[date, dict[str, Decimal]] = {}
 
@@ -191,13 +250,26 @@ def _build_weekly_totals(
         if not invoice_date:
             continue
 
-        if cutoff_date and invoice_date < cutoff_date:
+        if date_from and invoice_date < date_from:
+            continue
+
+        if date_to and invoice_date > date_to:
             continue
 
         week_ending = _week_ending_sunday(invoice_date)
 
-        sales_inc_vat = _to_decimal(invoice.get("total"))
-        sales_ex_vat = _to_decimal(invoice.get("sub_total") or invoice.get("subtotal"))
+        total = _to_decimal(invoice.get("total"))
+        sub_total = _to_decimal(invoice.get("sub_total") or invoice.get("subtotal"))
+        tax_total = _to_decimal(invoice.get("tax_total"))
+
+        sales_inc_vat = total
+
+        if sub_total > Decimal("0.00"):
+            sales_ex_vat = sub_total
+        elif total > Decimal("0.00") and tax_total > Decimal("0.00"):
+            sales_ex_vat = (total - tax_total).quantize(Decimal("0.01"))
+        else:
+            sales_ex_vat = Decimal("0.00")
 
         if week_ending not in weekly_totals:
             weekly_totals[week_ending] = {
@@ -234,7 +306,10 @@ async def _get_company_and_connection(
         .first()
     )
     if not connection:
-        raise HTTPException(status_code=400, detail="Zoho is not connected for this company")
+        raise HTTPException(
+            status_code=400,
+            detail="Zoho is not connected for this company",
+        )
 
     organization_id = company.zoho_org_id or connection.zoho_org_id
     if not organization_id or organization_id == "unknown":
@@ -265,7 +340,14 @@ async def get_zoho_weekly_prefill(
         organization_id=organization_id,
     )
 
-    weekly_totals = _build_weekly_totals(invoices=invoices, cutoff_date=None)
+    week_start = _week_start_monday(week_ending)
+    week_end = _week_ending_sunday(week_ending)
+
+    weekly_totals = _build_weekly_totals(
+        invoices=invoices,
+        date_from=week_start,
+        date_to=week_end,
+    )
     totals = weekly_totals.get(week_ending)
 
     if not totals:
@@ -297,7 +379,10 @@ async def get_zoho_weekly_prefill(
 @router.post("/sync/{company_id}")
 async def sync_zoho_invoices_to_weekly_reports(
     company_id: UUID,
-    days_back: int = Query(default=180, ge=7, le=730),
+    preset: str | None = Query(default="last_4_weeks"),
+    week_ending: date | None = Query(default=None),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
     db: Session = Depends(get_db),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
@@ -307,29 +392,36 @@ async def sync_zoho_invoices_to_weekly_reports(
         company_id=company_id,
     )
 
+    resolved_from, resolved_to, resolved_preset, resolved_week_ending = _resolve_sync_range(
+        preset=preset,
+        week_ending=week_ending,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
     access_token = await _get_valid_access_token(db, connection)
     invoices = await _fetch_all_invoices(
         access_token=access_token,
         organization_id=organization_id,
     )
 
-    cutoff_date = date.today() - timedelta(days=days_back)
     weekly_totals = _build_weekly_totals(
         invoices=invoices,
-        cutoff_date=cutoff_date,
+        date_from=resolved_from,
+        date_to=resolved_to,
     )
 
     created_count = 0
     updated_count = 0
     skipped_existing_reports = 0
 
-    for week_ending, totals in sorted(weekly_totals.items()):
+    for report_week_ending, totals in sorted(weekly_totals.items()):
         existing = (
             db.query(WeeklyReport)
             .filter(
                 WeeklyReport.tenant_id == tenant_id,
                 WeeklyReport.company_id == company_id,
-                WeeklyReport.week_ending == week_ending,
+                WeeklyReport.week_ending == report_week_ending,
             )
             .first()
         )
@@ -349,7 +441,7 @@ async def sync_zoho_invoices_to_weekly_reports(
         report = WeeklyReport(
             tenant_id=tenant_id,
             company_id=company_id,
-            week_ending=week_ending,
+            week_ending=report_week_ending,
             sales_inc_vat=float(totals["sales_inc_vat"]),
             sales_ex_vat=float(totals["sales_ex_vat"]),
             wages=0,
@@ -378,7 +470,10 @@ async def sync_zoho_invoices_to_weekly_reports(
     return {
         "success": True,
         "company_id": str(company_id),
-        "days_back": days_back,
+        "preset": resolved_preset,
+        "week_ending": str(resolved_week_ending) if resolved_week_ending else None,
+        "date_from": str(resolved_from) if resolved_from else None,
+        "date_to": str(resolved_to) if resolved_to else None,
         "weeks_detected": len(weekly_totals),
         "created_reports": created_count,
         "updated_reports": updated_count,

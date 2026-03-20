@@ -71,9 +71,13 @@ export type CompanyUpdatePayload = {
 export type ZohoSyncResponse = {
   success: boolean
   company_id: string
-  days_back: number
+  preset?: string
+  week_ending?: string | null
+  date_from?: string | null
+  date_to?: string | null
   weeks_detected: number
   created_reports: number
+  updated_reports?: number
   skipped_existing_reports: number
 }
 
@@ -635,14 +639,39 @@ export async function sendWeeklyReportEmail(
 
 export async function syncZohoSales(
   companyId: string,
-  daysBack = 180
+  options?: {
+    preset?: "this_week" | "last_week" | "last_4_weeks" | "last_12_weeks" | "specific_week"
+    weekEnding?: string
+    dateFrom?: string
+    dateTo?: string
+  }
 ): Promise<ZohoSyncResponse> {
-  return authFetch<ZohoSyncResponse>(
-    `/api/integrations/zoho/sync/${companyId}?days_back=${daysBack}`,
-    {
-      method: "POST",
-    }
-  )
+  const params = new URLSearchParams()
+
+  if (options?.preset) {
+    params.set("preset", options.preset)
+  }
+
+  if (options?.weekEnding) {
+    params.set("week_ending", options.weekEnding)
+  }
+
+  if (options?.dateFrom) {
+    params.set("date_from", options.dateFrom)
+  }
+
+  if (options?.dateTo) {
+    params.set("date_to", options.dateTo)
+  }
+
+  const query = params.toString()
+  const url = query
+    ? `/api/integrations/zoho/sync/${companyId}?${query}`
+    : `/api/integrations/zoho/sync/${companyId}`
+
+  return authFetch<ZohoSyncResponse>(url, {
+    method: "POST",
+  })
 }
 
 export async function getZohoWeeklyPrefill(

@@ -77,29 +77,6 @@ function buildWeekSubLabel(report: WeeklyReportListItem) {
   return "Weekly report"
 }
 
-function getSourceBadge(source?: string | null) {
-  const value = (source || "manual").toLowerCase()
-
-  if (value.includes("zoho")) {
-    return {
-      label: "Zoho",
-      className: "border border-sky-200 bg-sky-50 text-sky-700",
-    }
-  }
-
-  if (value.includes("square")) {
-    return {
-      label: "Square",
-      className: "border border-violet-200 bg-violet-50 text-violet-700",
-    }
-  }
-
-  return {
-    label: "Manual",
-    className: "border border-zinc-200 bg-zinc-50 text-zinc-700",
-  }
-}
-
 function computeNetProfit(report: WeeklyReportListItem) {
   if (typeof report.net_profit === "number") return report.net_profit
 
@@ -127,6 +104,14 @@ function getMarginBadgeClass(netMargin: number) {
   return "bg-rose-100 text-rose-700"
 }
 
+function getTodayLocalISO() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = `${now.getMonth() + 1}`.padStart(2, "0")
+  const day = `${now.getDate()}`.padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 export default function CompanyWeeklyReportsPage() {
   const params = useParams()
   const router = useRouter()
@@ -143,6 +128,11 @@ export default function CompanyWeeklyReportsPage() {
   const [syncingZoho, setSyncingZoho] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [showSyncModal, setShowSyncModal] = useState(false)
+  const [syncPreset, setSyncPreset] = useState<
+    "this_week" | "last_week" | "last_4_weeks" | "last_12_weeks" | "specific_week"
+  >("last_4_weeks")
+  const [specificWeekEnding, setSpecificWeekEnding] = useState(getTodayLocalISO())
 
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({})
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -191,12 +181,29 @@ export default function CompanyWeeklyReportsPage() {
       setSyncError(null)
       setSyncMessage(null)
 
-      const result = await syncZohoSales(companyId, 180)
+      const options =
+        syncPreset === "specific_week"
+          ? {
+              preset: syncPreset,
+              weekEnding: specificWeekEnding,
+            }
+          : {
+              preset: syncPreset,
+            }
 
-      setSyncMessage(
-        `Zoho sync complete. ${result.created_reports} reports created, ${result.skipped_existing_reports} existing weeks skipped.`
-      )
+      const result = await syncZohoSales(companyId, options)
 
+      if (result.preset === "specific_week" && result.week_ending) {
+        setSyncMessage(
+          `Zoho sync complete for week ending ${result.week_ending}. ${result.created_reports} reports created, ${result.updated_reports ?? 0} updated, ${result.skipped_existing_reports} skipped.`
+        )
+      } else {
+        setSyncMessage(
+          `Zoho sync complete for ${result.preset || "selected range"}. ${result.created_reports} reports created, ${result.updated_reports ?? 0} updated, ${result.skipped_existing_reports} skipped.`
+        )
+      }
+
+      setShowSyncModal(false)
       await loadData()
     } catch (err) {
       console.error("Zoho sync error:", err)
@@ -268,27 +275,27 @@ export default function CompanyWeeklyReportsPage() {
   }
 
   async function handleDeleteSelected() {
-  try {
-    setDeleteBusy(true)
-    setDeleteError(null)
+    try {
+      setDeleteBusy(true)
+      setDeleteError(null)
 
-    if (selectedReportIds.length === 0) {
-      throw new Error("No weekly reports selected.")
+      if (selectedReportIds.length === 0) {
+        throw new Error("No weekly reports selected.")
+      }
+
+      await deleteWeeklyReportsBulk(selectedReportIds)
+
+      setShowDeleteModal(false)
+      setSelectedIds({})
+      await loadData()
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to delete selected reports."
+      )
+    } finally {
+      setDeleteBusy(false)
     }
-
-    await deleteWeeklyReportsBulk(selectedReportIds)
-
-    setShowDeleteModal(false)
-    setSelectedIds({})
-    await loadData()
-  } catch (err) {
-    setDeleteError(
-      err instanceof Error ? err.message : "Failed to delete selected reports."
-    )
-  } finally {
-    setDeleteBusy(false)
   }
-}
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] text-zinc-950">
@@ -338,8 +345,6 @@ export default function CompanyWeeklyReportsPage() {
                   </Link>
                 )
               })}
-
-              
             </div>
 
             <Link
@@ -408,7 +413,11 @@ export default function CompanyWeeklyReportsPage() {
             <div className="flex items-center gap-3 self-start">
               {company?.sales_source === "zoho" && (
                 <button
-                  onClick={handleZohoSync}
+                  onClick={() => {
+                    setSyncError(null)
+                    setSyncMessage(null)
+                    setShowSyncModal(true)
+                  }}
                   disabled={syncingZoho}
                   className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
@@ -560,7 +569,7 @@ export default function CompanyWeeklyReportsPage() {
                         </th>
                         <th className="px-6 py-4 font-medium">Week</th>
                         <th className="px-6 py-4 font-medium">Week Ending</th>
-                        <th className="px-6 py-4 font-medium">Source</th>
+                        <th className="px-6 py-4 font-medium">Sales inc VAT</th>
                         <th className="px-6 py-4 font-medium">Sales ex VAT</th>
                         <th className="px-6 py-4 font-medium">Labour</th>
                         <th className="px-6 py-4 font-medium">Net Profit</th>
@@ -578,7 +587,6 @@ export default function CompanyWeeklyReportsPage() {
                         </tr>
                       ) : (
                         reports.map((report) => {
-                          const source = getSourceBadge(report.source)
                           const netProfit = computeNetProfit(report)
                           const netMargin = computeNetMargin(report)
                           const labourTotal = (report.wages || 0) + (report.holiday_pay || 0)
@@ -626,16 +634,12 @@ export default function CompanyWeeklyReportsPage() {
                               </td>
 
                               <td
-                                className="cursor-pointer px-6 py-4"
+                                className="cursor-pointer px-6 py-4 font-medium text-zinc-900"
                                 onClick={() =>
                                   router.push(`/companies/${companyId}/reports/${report.id}`)
                                 }
                               >
-                                <span
-                                  className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${source.className}`}
-                                >
-                                  {source.label}
-                                </span>
+                                {fmtMoney(report.sales_inc_vat || 0)}
                               </td>
 
                               <td
@@ -704,6 +708,121 @@ export default function CompanyWeeklyReportsPage() {
         </section>
       </div>
 
+      {showSyncModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 px-4">
+          <div className="w-full max-w-lg rounded-[28px] border border-zinc-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h4 className="text-xl font-semibold tracking-tight text-zinc-950">
+                  Sync Zoho Sales
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-zinc-600">
+                  Choose the week range to sync. Smaller ranges reduce API usage and avoid unnecessary sync load.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowSyncModal(false)}
+                disabled={syncingZoho}
+                className="rounded-2xl p-2 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3">
+                <input
+                  type="radio"
+                  name="syncPreset"
+                  value="this_week"
+                  checked={syncPreset === "this_week"}
+                  onChange={() => setSyncPreset("this_week")}
+                />
+                <span className="text-sm font-medium text-zinc-800">This week</span>
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3">
+                <input
+                  type="radio"
+                  name="syncPreset"
+                  value="last_week"
+                  checked={syncPreset === "last_week"}
+                  onChange={() => setSyncPreset("last_week")}
+                />
+                <span className="text-sm font-medium text-zinc-800">Last week</span>
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3">
+                <input
+                  type="radio"
+                  name="syncPreset"
+                  value="last_4_weeks"
+                  checked={syncPreset === "last_4_weeks"}
+                  onChange={() => setSyncPreset("last_4_weeks")}
+                />
+                <span className="text-sm font-medium text-zinc-800">Last 4 weeks</span>
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3">
+                <input
+                  type="radio"
+                  name="syncPreset"
+                  value="last_12_weeks"
+                  checked={syncPreset === "last_12_weeks"}
+                  onChange={() => setSyncPreset("last_12_weeks")}
+                />
+                <span className="text-sm font-medium text-zinc-800">Last 12 weeks</span>
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3">
+                <input
+                  type="radio"
+                  name="syncPreset"
+                  value="specific_week"
+                  checked={syncPreset === "specific_week"}
+                  onChange={() => setSyncPreset("specific_week")}
+                />
+                <span className="text-sm font-medium text-zinc-800">Specific week</span>
+              </label>
+
+              {syncPreset === "specific_week" && (
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <label className="mb-2 block text-sm font-medium text-zinc-700">
+                    Week ending
+                  </label>
+                  <input
+                    type="date"
+                    value={specificWeekEnding}
+                    onChange={(e) => setSpecificWeekEnding(e.target.value)}
+                    className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 outline-none ring-0 transition focus:border-zinc-400"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowSyncModal(false)}
+                disabled={syncingZoho}
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleZohoSync}
+                disabled={syncingZoho || (syncPreset === "specific_week" && !specificWeekEnding)}
+                className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw size={15} className={syncingZoho ? "animate-spin" : ""} />
+                {syncingZoho ? "Syncing..." : "Run sync"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 px-4">
           <div className="w-full max-w-md rounded-[28px] border border-zinc-200 bg-white p-6 shadow-2xl">
@@ -721,26 +840,22 @@ export default function CompanyWeeklyReportsPage() {
                   This action should permanently remove them.
                 </p>
                 <p className="mt-3 text-sm text-zinc-500">
-  This action will permanently remove the selected weekly reports.
-</p>
+                  This action will permanently remove the selected weekly reports.
+                </p>
               </div>
             </div>
 
             <div className="mt-6 flex items-center justify-end gap-3">
-             <button
-  onClick={handleDeleteSelected}
-  disabled={deleteBusy}
-  className="inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
->
-  <Trash2 size={15} />
-  {deleteBusy ? "Deleting..." : "Delete selected"}
-</button>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleteBusy}
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
 
               <button
-                onClick={async () => {
-                  await handleDeleteSelected()
-                  setShowDeleteModal(false)
-                }}
+                onClick={handleDeleteSelected}
                 disabled={deleteBusy}
                 className="inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
