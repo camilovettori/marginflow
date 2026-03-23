@@ -338,27 +338,27 @@ export default function CompanyPage() {
   }, [dashboard, wagesPct, foodCostPct, cashFlow])
 
   async function handleZohoSync() {
-    try {
-      setZohoSyncError(null)
-      setZohoSyncMessage(null)
-      setSyncingZoho(true)
+  try {
+    setZohoSyncError(null)
+    setZohoSyncMessage(null)
+    setSyncingZoho(true)
 
-      const result = await syncZohoSales(companyId, 180)
+    const result = await syncZohoSales(companyId, { preset: "last_12_weeks" })
 
-      setZohoSyncMessage(
-        `Zoho sync complete. ${result.created_reports} weekly reports created, ${result.skipped_existing_reports} existing weeks skipped.`
-      )
+    setZohoSyncMessage(
+      `Zoho sync complete. ${result.created_reports} weekly reports created, ${result.skipped_existing_reports} existing weeks skipped.`
+    )
 
-      await loadCompanyPageData()
-    } catch (err) {
-      console.error("Zoho sync error:", err)
-      setZohoSyncError(
-        err instanceof Error ? err.message : "Failed to sync Zoho sales."
-      )
-    } finally {
-      setSyncingZoho(false)
-    }
+    await loadCompanyPageData()
+  } catch (err) {
+    console.error("Zoho sync error:", err)
+    setZohoSyncError(
+      err instanceof Error ? err.message : "Failed to sync Zoho sales."
+    )
+  } finally {
+    setSyncingZoho(false)
   }
+}
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.9),_rgba(244,244,245,1)_40%,_rgba(240,240,243,1)_100%)] text-zinc-950">
