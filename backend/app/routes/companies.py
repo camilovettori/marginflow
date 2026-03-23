@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.deps import get_tenant_id
 from app.models.company import Company
 from app.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
+from app.services.financial_categories_service import ensure_default_financial_categories
 
 router = APIRouter(prefix="/api/companies", tags=["Companies"])
 
@@ -26,6 +27,8 @@ def create_company(
     )
     if exists:
         raise HTTPException(status_code=409, detail="slug já existe para este tenant")
+
+    ensure_default_financial_categories(db, tenant_id)
 
     c = Company(
         tenant_id=tenant_id,

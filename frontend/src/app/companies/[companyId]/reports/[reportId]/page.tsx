@@ -4,23 +4,35 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import {
-  getWeeklyReportById,
-  updateWeeklyReport,
+  createWeeklyReportItem,
+  deleteWeeklyReportItem,
   generateWeeklyReportPdf,
+  getFinancialCategories,
+  getWeeklyReportBreakdown,
+  getWeeklyReportById,
   sendWeeklyReportEmail,
+  updateWeeklyReport,
+  type FinancialCategory,
+  type WeeklyReportBreakdownResponse,
   type WeeklyReportDetail,
   type WeeklyReportUpdatePayload,
 } from "@/services/api"
 import {
   ArrowLeft,
+  BarChart3,
   Building2,
   CalendarDays,
   Download,
+  Layers3,
   Mail,
   Percent,
+  Plus,
+  ReceiptText,
   Save,
   Settings2,
   Sparkles,
+  Target,
+  Trash2,
   TrendingUp,
   Wallet,
 } from "lucide-react"
@@ -115,6 +127,67 @@ function buildWeekLabel(report: WeeklyReportDetail | null) {
   return formatDate(report.week_ending)
 }
 
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ")
+}
+
+function SectionCard({
+  title,
+  description,
+  icon,
+  children,
+  className = "",
+}: {
+  title: string
+  description?: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-[30px] border border-zinc-200/80 bg-white/90 p-6 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-sm",
+        className
+      )}
+    >
+      <div className="mb-5 flex items-start gap-3">
+        {icon ? (
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
+            {icon}
+          </div>
+        ) : null}
+
+        <div>
+          <h3 className="text-[1.15rem] font-semibold tracking-tight text-zinc-950">{title}</h3>
+          {description ? <p className="mt-1 text-sm text-zinc-500">{description}</p> : null}
+        </div>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function SubCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-[24px] border border-zinc-200/80 bg-zinc-50/70 p-5">
+      <div className="mb-4 flex items-center gap-2">
+        {icon ? <span className="text-zinc-500">{icon}</span> : null}
+        <h4 className="text-sm font-semibold text-zinc-950">{title}</h4>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 function Field({
   label,
   value,
@@ -136,7 +209,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
+        className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
       />
     </div>
   )
@@ -158,7 +231,7 @@ function MoneyField({
   return (
     <div>
       <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
-      <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 focus-within:border-zinc-400">
+      <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
         <span className="mr-2 text-sm text-zinc-500">€</span>
         <input
           type="number"
@@ -189,7 +262,7 @@ function PercentField({
   return (
     <div>
       <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
-      <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 focus-within:border-zinc-400">
+      <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
         <input
           type="number"
           step="0.01"
@@ -205,36 +278,83 @@ function PercentField({
   )
 }
 
-function MetricCard({
+function KPI({
   icon,
-  title,
+  label,
   value,
-  subtitle,
+  caption,
+  positive = false,
 }: {
   icon: React.ReactNode
-  title: string
+  label: string
   value: string
-  subtitle: string
+  caption: string
+  positive?: boolean
 }) {
   return (
-    <div className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-900">
+    <div className="rounded-[28px] border border-zinc-200/80 bg-white/90 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
         {icon}
       </div>
-      <p className="mt-4 text-sm font-medium text-zinc-500">{title}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">{value}</p>
-      <p className="mt-2 text-sm text-zinc-500">{subtitle}</p>
+      <p className="mt-4 text-sm font-medium text-zinc-500">{label}</p>
+      <p
+        className={cn(
+          "mt-2 text-4xl font-semibold tracking-tight",
+          positive ? "text-emerald-600" : "text-zinc-950"
+        )}
+      >
+        {value}
+      </p>
+      <p className="mt-2 text-sm text-zinc-500">{caption}</p>
     </div>
   )
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function ExecutiveRow({
+  label,
+  value,
+  valueClassName = "",
+}: {
+  label: string
+  value: string
+  valueClassName?: string
+}) {
   return (
     <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3">
       <span className="text-sm text-zinc-500">{label}</span>
-      <span className="text-sm font-semibold text-zinc-950">{value}</span>
+      <span className={cn("text-sm font-semibold text-zinc-950", valueClassName)}>{value}</span>
     </div>
   )
+}
+
+function Signal({
+  children,
+  tone = "neutral",
+}: {
+  children: React.ReactNode
+  tone?: "neutral" | "good" | "warn"
+}) {
+  const styles =
+    tone === "good"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-zinc-200 bg-zinc-50 text-zinc-700"
+
+  return <div className={cn("rounded-2xl border px-4 py-3 text-sm leading-6", styles)}>{children}</div>
+}
+
+function getTypePillClass(type?: string | null) {
+  const value = (type || "").toLowerCase()
+  if (value === "expense") return "bg-rose-50 text-rose-700 border border-rose-200"
+  if (value === "cogs") return "bg-amber-50 text-amber-700 border border-amber-200"
+  if (value === "revenue") return "bg-emerald-50 text-emerald-700 border border-emerald-200"
+  return "bg-zinc-50 text-zinc-700 border border-zinc-200"
+}
+
+function getGroupPillClass(group?: string | null) {
+  if (!group) return "bg-zinc-50 text-zinc-600 border border-zinc-200"
+  return "bg-sky-50 text-sky-700 border border-sky-200"
 }
 
 export default function WeeklyReportDetailPage() {
@@ -243,9 +363,13 @@ export default function WeeklyReportDetailPage() {
   const reportId = params.reportId as string
 
   const [report, setReport] = useState<WeeklyReportDetail | null>(null)
+  const [breakdown, setBreakdown] = useState<WeeklyReportBreakdownResponse | null>(null)
+  const [categories, setCategories] = useState<FinancialCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [busyAction, setBusyAction] = useState<"pdf" | "email" | null>(null)
+  const [addingItem, setAddingItem] = useState(false)
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -268,14 +392,27 @@ export default function WeeklyReportDetailPage() {
     notes: "",
   })
 
+  const [newItem, setNewItem] = useState({
+    category_id: "",
+    amount: "",
+    notes: "",
+  })
+
   useEffect(() => {
     async function loadReport() {
       try {
         setLoading(true)
         setError(null)
 
-        const data = await getWeeklyReportById(reportId)
+        const [data, breakdownData, categoriesData] = await Promise.all([
+          getWeeklyReportById(reportId),
+          getWeeklyReportBreakdown(reportId),
+          getFinancialCategories(),
+        ])
+
         setReport(data)
+        setBreakdown(breakdownData)
+        setCategories(categoriesData.filter((c) => c.is_active))
 
         setForm({
           company_id: data.company_id,
@@ -319,9 +456,7 @@ export default function WeeklyReportDetailPage() {
     return Number(form.food_cost || 0)
   }, [foodCostMode, foodCostPercent, salesExVat, form.food_cost])
 
-  const grossProfit = useMemo(() => {
-    return salesExVat - computedFoodCost
-  }, [salesExVat, computedFoodCost])
+  const grossProfit = useMemo(() => salesExVat - computedFoodCost, [salesExVat, computedFoodCost])
 
   const netProfit = useMemo(() => {
     return (
@@ -333,7 +468,15 @@ export default function WeeklyReportDetailPage() {
       Number(form.loans_hp || 0) -
       Number(form.vat_due || 0)
     )
-  }, [salesExVat, labourTotal, computedFoodCost, form.fixed_costs, form.variable_costs, form.loans_hp, form.vat_due])
+  }, [
+    salesExVat,
+    labourTotal,
+    computedFoodCost,
+    form.fixed_costs,
+    form.variable_costs,
+    form.loans_hp,
+    form.vat_due,
+  ])
 
   const grossMarginPct = useMemo(() => {
     if (salesExVat <= 0) return 0
@@ -350,27 +493,121 @@ export default function WeeklyReportDetailPage() {
     return labourTotal / salesExVat
   }, [salesExVat, labourTotal])
 
-  const insights = useMemo(() => {
-    const list: string[] = []
+  const breakdownLineCount = breakdown?.items.length || 0
+
+  const breakdownTotal = useMemo(() => {
+    if (!breakdown) return 0
+    return breakdown.items.reduce((sum, item) => sum + (item.amount || 0), 0)
+  }, [breakdown])
+
+  const topBreakdownItem = useMemo(() => {
+    if (!breakdown || breakdown.items.length === 0) return null
+    return [...breakdown.items].sort((a, b) => (b.amount || 0) - (a.amount || 0))[0]
+  }, [breakdown])
+
+  const healthLabel = useMemo(() => {
+    if (netMarginPct >= 0.18 && labourPct <= 0.32) return "Healthy Week"
+    if (netMarginPct >= 0.1) return "Watch Closely"
+    return "Needs Attention"
+  }, [netMarginPct, labourPct])
+
+  const healthBadgeClass = useMemo(() => {
+    if (netMarginPct >= 0.18 && labourPct <= 0.32) {
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
+    }
+    if (netMarginPct >= 0.1) {
+      return "border-amber-200 bg-amber-50 text-amber-700"
+    }
+    return "border-rose-200 bg-rose-50 text-rose-700"
+  }, [netMarginPct, labourPct])
+
+  const groupedSummaryRows = useMemo(() => {
+    const rows: Array<{ label: string; value: number }> = []
+
+    if (isoWeekInfo) {
+      rows.push({ label: "Week", value: Number(isoWeekInfo.isoWeek) })
+      rows.push({ label: "Year", value: Number(isoWeekInfo.isoYear) })
+    }
+
+    ;(breakdown?.totals_by_type || []).forEach((row) => {
+      rows.push({ label: `Type · ${row.key}`, value: row.total })
+    })
+
+    ;(breakdown?.totals_by_group || []).forEach((row) => {
+      rows.push({ label: `Group · ${row.key}`, value: row.total })
+    })
+
+    return rows
+  }, [breakdown, isoWeekInfo])
+
+  const goodSignals = useMemo(() => {
+    const signals: string[] = []
+
+    if (netMarginPct >= 0.18) {
+      signals.push("Strong week. Profitability is healthy and the business is operating inside a good efficiency range.")
+    }
+
+    if (grossMarginPct >= 0.65) {
+      signals.push("Gross margin is holding well. Core product margin looks solid this week.")
+    }
+
+    if (breakdownLineCount > 0) {
+      signals.push("Categorized P&L structure is active. Breakdown lines are helping standardize the weekly report.")
+    }
+
+    return signals
+  }, [netMarginPct, grossMarginPct, breakdownLineCount])
+
+  const warningSignals = useMemo(() => {
+    const signals: string[] = []
+
+    if (netMarginPct < 0.1) {
+      signals.push("Margin is under target. Focus on cost control, pricing discipline and operational efficiency.")
+    }
 
     if (labourPct > 0.35) {
-      list.push("Labour cost is above target. Review staffing levels on lower-traffic days.")
+      signals.push("Labour pressure is high for the current revenue level. Review rota efficiency and staffing mix.")
     }
 
     if (grossMarginPct < 0.6) {
-      list.push("Gross margin is below healthy range. Review food cost, wastage, and supplier pricing.")
+      signals.push("Gross margin is softer than expected. Review food cost, supplier pricing and waste.")
     }
 
-    if (netMarginPct < 0.1) {
-      list.push("Net margin is below target. Focus on labour control, pricing, and cost discipline.")
-    }
+    return signals
+  }, [netMarginPct, labourPct, grossMarginPct])
 
-    if (list.length === 0) {
-      list.push("This week is performing within healthy margin thresholds.")
-    }
+  async function reloadBreakdown() {
+    try {
+      const [breakdownData, updatedReport] = await Promise.all([
+        getWeeklyReportBreakdown(reportId),
+        getWeeklyReportById(reportId),
+      ])
 
-    return list
-  }, [labourPct, grossMarginPct, netMarginPct])
+      setBreakdown(breakdownData)
+      setReport(updatedReport)
+
+      setForm((prev) => ({
+        ...prev,
+        sales_inc_vat: updatedReport.sales_inc_vat || 0,
+        sales_ex_vat: updatedReport.sales_ex_vat || 0,
+        wages: updatedReport.wages || 0,
+        holiday_pay: updatedReport.holiday_pay || 0,
+        food_cost: updatedReport.food_cost || 0,
+        fixed_costs: updatedReport.fixed_costs || 0,
+        variable_costs: updatedReport.variable_costs || 0,
+        loans_hp: updatedReport.loans_hp || 0,
+        vat_due: updatedReport.vat_due || 0,
+        notes: updatedReport.notes || "",
+      }))
+
+      if ((updatedReport.food_cost || 0) > 0 && (updatedReport.sales_ex_vat || 0) > 0) {
+        const pct = ((updatedReport.food_cost || 0) / (updatedReport.sales_ex_vat || 1)) * 100
+        setFoodCostPercent(pct.toFixed(2))
+      }
+    } catch (err) {
+      console.error("Reload breakdown error:", err)
+    }
+  }
 
   async function handleSave() {
     try {
@@ -401,6 +638,7 @@ export default function WeeklyReportDetailPage() {
         notes: updated.notes || "",
       })
 
+      await reloadBreakdown()
       setSuccessMessage("Weekly report updated successfully.")
     } catch (err) {
       console.error("Save report error:", err)
@@ -447,11 +685,67 @@ export default function WeeklyReportDetailPage() {
     }
   }
 
+  async function handleAddBreakdownItem() {
+    try {
+      setAddingItem(true)
+      setError(null)
+      setSuccessMessage(null)
+
+      if (!newItem.category_id) {
+        throw new Error("Select a category.")
+      }
+
+      const amount = Number(newItem.amount)
+      if (!amount || amount <= 0) {
+        throw new Error("Enter a valid amount greater than zero.")
+      }
+
+      await createWeeklyReportItem(reportId, {
+        category_id: newItem.category_id,
+        amount,
+        notes: newItem.notes || null,
+      })
+
+      setNewItem({
+        category_id: "",
+        amount: "",
+        notes: "",
+      })
+
+      await reloadBreakdown()
+      setSuccessMessage("Breakdown item added successfully. Core mapped fields were updated where applicable.")
+    } catch (err) {
+      console.error("Add breakdown item error:", err)
+      setError(err instanceof Error ? err.message : "Failed to add breakdown item.")
+    } finally {
+      setAddingItem(false)
+    }
+  }
+
+  async function handleDeleteBreakdownItem(itemId: string) {
+    try {
+      setDeletingItemId(itemId)
+      setError(null)
+      setSuccessMessage(null)
+
+      await deleteWeeklyReportItem(itemId)
+      await reloadBreakdown()
+      setSuccessMessage("Breakdown item deleted successfully. Core mapped fields were recalculated.")
+    } catch (err) {
+      console.error("Delete breakdown item error:", err)
+      setError(err instanceof Error ? err.message : "Failed to delete breakdown item.")
+    } finally {
+      setDeletingItemId(null)
+    }
+  }
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-50 px-6 py-8 md:px-8 xl:px-10">
-        <div className="rounded-[28px] border border-zinc-200 bg-white p-8 shadow-sm">
-          <p className="text-zinc-500">Loading weekly report...</p>
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-6 py-8 md:px-8 xl:px-10">
+        <div className="mx-auto max-w-7xl">
+          <SectionCard title="Loading report" description="Fetching weekly intelligence data.">
+            <p className="text-sm text-zinc-500">Loading weekly report...</p>
+          </SectionCard>
         </div>
       </main>
     )
@@ -459,9 +753,11 @@ export default function WeeklyReportDetailPage() {
 
   if (!report) {
     return (
-      <main className="min-h-screen bg-zinc-50 px-6 py-8 md:px-8 xl:px-10">
-        <div className="rounded-[28px] border border-red-200 bg-red-50 p-8 text-red-700">
-          Weekly report not found.
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-6 py-8 md:px-8 xl:px-10">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-[28px] border border-red-200 bg-red-50 p-8 text-red-700">
+            Weekly report not found.
+          </div>
         </div>
       </main>
     )
@@ -470,353 +766,530 @@ export default function WeeklyReportDetailPage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-6 py-8 text-zinc-950 md:px-8 xl:px-10">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="mb-4">
+        <div className="mb-6 flex flex-col gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-4">
               <Link
                 href={`/companies/${companyId}/reports`}
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50"
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-2 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50"
               >
                 <ArrowLeft size={16} />
                 Back to Weekly Reports
               </Link>
+
+              <div className="inline-flex max-w-full items-start gap-4 rounded-[28px] border border-zinc-200/80 bg-white/90 px-5 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-zinc-950 text-white">
+                  <Building2 size={20} />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="truncate text-[1.15rem] font-semibold tracking-tight text-zinc-950">
+                      {report.company_name || "Selected Company"} — Weekly Intelligence Report
+                    </h1>
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium",
+                        healthBadgeClass
+                      )}
+                    >
+                      {healthLabel}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-base text-zinc-600">{buildWeekLabel(report)}</p>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    {formatDate(report.week_start)} → {formatDate(report.week_end)}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-950 text-white shadow-sm">
-                <Building2 size={20} />
-              </div>
-              <div>
-                <h1 className="text-4xl font-semibold tracking-tight text-zinc-950">
-                  {report.company_name || "Selected Company"} — Weekly Intelligence Report
-                </h1>
-                <p className="mt-2 text-base text-zinc-600">{buildWeekLabel(report)}</p>
-                <p className="mt-1 text-sm text-zinc-500">
-                  {formatDate(report.week_start)} → {formatDate(report.week_end)}
-                </p>
-              </div>
+            <div className="flex flex-wrap items-center gap-3 self-start">
+              <button
+                onClick={handleGeneratePdf}
+                disabled={busyAction !== null}
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Download size={16} />
+                {busyAction === "pdf" ? "Generating..." : "Generate PDF"}
+              </button>
+
+              <button
+                onClick={handleSendEmail}
+                disabled={busyAction !== null}
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Mail size={16} />
+                {busyAction === "email" ? "Sending..." : "Send by Email"}
+              </button>
+
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Save size={16} />
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 self-start">
-            <button
-              onClick={handleGeneratePdf}
-              disabled={busyAction !== null}
-              className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Download size={16} />
-              {busyAction === "pdf" ? "Generating..." : "Generate PDF"}
-            </button>
+          {error ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
 
-            <button
-              onClick={handleSendEmail}
-              disabled={busyAction !== null}
-              className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Mail size={16} />
-              {busyAction === "email" ? "Sending..." : "Send by Email"}
-            </button>
-
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Save size={16} />
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
+          {successMessage ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {successMessage}
+            </div>
+          ) : null}
         </div>
-
-        {error && (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
-            {error}
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
-            {successMessage}
-          </div>
-        )}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
+          <KPI
             icon={<Wallet size={18} />}
-            title="Sales ex VAT"
+            label="Sales ex VAT"
             value={formatMoney(form.sales_ex_vat)}
-            subtitle="Core revenue base"
+            caption="Core revenue base"
           />
-          <MetricCard
+          <KPI
             icon={<TrendingUp size={18} />}
-            title="Gross Profit"
-            value={formatMoney(grossProfit)}
-            subtitle="Revenue minus food cost"
+            label="Net Profit"
+            value={formatMoney(netProfit)}
+            caption="Bottom-line result"
+            positive={netProfit > 0}
           />
-          <MetricCard
+          <KPI
             icon={<Percent size={18} />}
-            title="Net Margin"
+            label="Net Margin"
             value={formatPct(netMarginPct)}
-            subtitle="Bottom-line efficiency"
+            caption="Profitability quality"
+            positive={netMarginPct >= 0.18}
           />
-          <MetricCard
+          <KPI
             icon={<Settings2 size={18} />}
-            title="Labour %"
+            label="Labour %"
             value={formatPct(labourPct)}
-            subtitle="Labour pressure vs revenue"
+            caption="Pressure vs revenue"
           />
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[1.22fr_0.78fr]">
           <div className="space-y-6">
-            <div className="rounded-[30px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <div className="mb-5 flex items-center gap-2">
-                <CalendarDays size={16} className="text-zinc-600" />
-                <h3 className="text-xl font-semibold tracking-tight text-zinc-950">
-                  Week Details
-                </h3>
-              </div>
+            <SectionCard
+              title="Core Report"
+              description="Keep the weekly report clean and operational. Use this as the main financial layer for the week."
+              icon={<ReceiptText size={18} />}
+            >
+              <div className="space-y-4">
+                <SubCard title="Week Setup" icon={<CalendarDays size={15} />}>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Field
+                      label="Week Ending"
+                      type="date"
+                      value={form.week_ending}
+                      onChange={(value) => setForm((prev) => ({ ...prev, week_ending: value }))}
+                    />
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field
-                  label="Week Ending"
-                  type="date"
-                  value={form.week_ending}
-                  onChange={(value) => setForm((prev) => ({ ...prev, week_ending: value }))}
-                />
-
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                  <p className="text-sm font-medium text-zinc-700">ISO Week</p>
-                  <p className="mt-2 text-sm text-zinc-500">
-                    {isoWeekInfo
-                      ? `Week ${isoWeekInfo.isoWeek} / ${isoWeekInfo.isoYear}`
-                      : "Select a date"}
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-400">
-                    {isoWeekInfo ? `${isoWeekInfo.start} → ${isoWeekInfo.end}` : ""}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[30px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <div className="mb-5">
-                <h3 className="text-xl font-semibold tracking-tight text-zinc-950">
-                  Sales
-                </h3>
-                <p className="mt-1 text-sm text-zinc-500">
-                  Weekly revenue inputs for the selected report.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <MoneyField
-                  label="Sales inc VAT"
-                  value={String(form.sales_inc_vat)}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, sales_inc_vat: Number(value) || 0 }))
-                  }
-                />
-
-                <MoneyField
-                  label="Sales ex VAT"
-                  value={String(form.sales_ex_vat)}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, sales_ex_vat: Number(value) || 0 }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="rounded-[30px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <div className="mb-5">
-                <h3 className="text-xl font-semibold tracking-tight text-zinc-950">
-                  Operational Costs
-                </h3>
-                <p className="mt-1 text-sm text-zinc-500">
-                  Standard cost structure with the same premium logic used in Add Weekly Report.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <MoneyField
-                  label="Wages"
-                  value={String(form.wages)}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, wages: Number(value) || 0 }))
-                  }
-                />
-
-                <MoneyField
-                  label="Holiday Pay"
-                  value={String(form.holiday_pay)}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, holiday_pay: Number(value) || 0 }))
-                  }
-                />
-
-                <div className="md:col-span-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                  <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-700">Food Cost</p>
-                      <p className="mt-1 text-sm text-zinc-500">
-                        Use a manual amount or calculate from sales percentage.
+                    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
+                      <p className="text-sm font-medium text-zinc-700">ISO Week</p>
+                      <p className="mt-2 text-sm text-zinc-500">
+                        {isoWeekInfo
+                          ? `Week ${isoWeekInfo.isoWeek} / ${isoWeekInfo.isoYear}`
+                          : "Select a date"}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-400">
+                        {isoWeekInfo ? `${isoWeekInfo.start} → ${isoWeekInfo.end}` : ""}
                       </p>
                     </div>
+                  </div>
+                </SubCard>
 
-                    <div className="inline-flex rounded-2xl border border-zinc-200 bg-white p-1">
-                      <button
-                        type="button"
-                        onClick={() => setFoodCostMode("manual")}
-                        className={`rounded-xl px-3 py-2 text-sm transition ${
-                          foodCostMode === "manual"
-                            ? "bg-zinc-950 text-white shadow-sm"
-                            : "text-zinc-500"
-                        }`}
-                      >
-                        Manual
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFoodCostMode("percent")}
-                        className={`rounded-xl px-3 py-2 text-sm transition ${
-                          foodCostMode === "percent"
-                            ? "bg-zinc-950 text-white shadow-sm"
-                            : "text-zinc-500"
-                        }`}
-                      >
-                        % of Sales
-                      </button>
+                <SubCard title="Revenue" icon={<Wallet size={15} />}>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <MoneyField
+                      label="Sales inc VAT"
+                      value={String(form.sales_inc_vat)}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, sales_inc_vat: Number(value) || 0 }))
+                      }
+                    />
+
+                    <MoneyField
+                      label="Sales ex VAT"
+                      value={String(form.sales_ex_vat)}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, sales_ex_vat: Number(value) || 0 }))
+                      }
+                    />
+                  </div>
+                </SubCard>
+
+                <SubCard title="Cost Structure" icon={<Settings2 size={15} />}>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <MoneyField
+                      label="Wages"
+                      value={String(form.wages)}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, wages: Number(value) || 0 }))
+                      }
+                    />
+
+                    <MoneyField
+                      label="Holiday Pay"
+                      value={String(form.holiday_pay)}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, holiday_pay: Number(value) || 0 }))
+                      }
+                    />
+
+                    <div className="md:col-span-2 rounded-2xl border border-zinc-200 bg-white p-4">
+                      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-zinc-700">Food Cost</p>
+                          <p className="mt-1 text-sm text-zinc-500">
+                            Enter a manual amount or calculate it as a percentage of sales.
+                          </p>
+                        </div>
+
+                        <div className="inline-flex rounded-2xl border border-zinc-200 bg-zinc-50 p-1">
+                          <button
+                            type="button"
+                            onClick={() => setFoodCostMode("manual")}
+                            className={cn(
+                              "rounded-xl px-3 py-2 text-sm transition",
+                              foodCostMode === "manual"
+                                ? "bg-zinc-950 text-white shadow-sm"
+                                : "text-zinc-500"
+                            )}
+                          >
+                            Manual
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFoodCostMode("percent")}
+                            className={cn(
+                              "rounded-xl px-3 py-2 text-sm transition",
+                              foodCostMode === "percent"
+                                ? "bg-zinc-950 text-white shadow-sm"
+                                : "text-zinc-500"
+                            )}
+                          >
+                            % of Sales
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {foodCostMode === "manual" ? (
+                          <MoneyField
+                            label="Food Cost"
+                            value={String(form.food_cost)}
+                            onChange={(value) =>
+                              setForm((prev) => ({ ...prev, food_cost: Number(value) || 0 }))
+                            }
+                          />
+                        ) : (
+                          <>
+                            <PercentField
+                              label="Food Cost %"
+                              value={foodCostPercent}
+                              onChange={setFoodCostPercent}
+                            />
+                            <MoneyField
+                              label="Calculated Food Cost"
+                              value={computedFoodCost.toFixed(2)}
+                              onChange={() => {}}
+                              disabled
+                            />
+                          </>
+                        )}
+                      </div>
                     </div>
+
+                    <MoneyField
+                      label="Fixed Costs"
+                      value={String(form.fixed_costs)}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, fixed_costs: Number(value) || 0 }))
+                      }
+                    />
+
+                    <MoneyField
+                      label="Variable Costs"
+                      value={String(form.variable_costs)}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, variable_costs: Number(value) || 0 }))
+                      }
+                    />
+
+                    <MoneyField
+                      label="Loans / HP"
+                      value={String(form.loans_hp)}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, loans_hp: Number(value) || 0 }))
+                      }
+                    />
+
+                    <MoneyField
+                      label="VAT Due"
+                      value={String(form.vat_due)}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, vat_due: Number(value) || 0 }))
+                      }
+                    />
+                  </div>
+                </SubCard>
+
+                <SubCard title="Notes" icon={<ReceiptText size={15} />}>
+                  <textarea
+                    rows={5}
+                    value={form.notes || ""}
+                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                    placeholder="Weekly notes, anomalies, events or operational observations..."
+                  />
+                </SubCard>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="P&L Breakdown"
+              description="Categorized financial lines for a cleaner, more scalable weekly structure."
+              icon={<Layers3 size={18} />}
+            >
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm font-medium text-zinc-500">Breakdown Lines</p>
+                  <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
+                    {breakdownLineCount}
+                  </p>
+                  <p className="mt-2 text-xs text-zinc-500">Categorized entries in this report</p>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm font-medium text-zinc-500">Breakdown Total</p>
+                  <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
+                    {formatMoney(breakdownTotal)}
+                  </p>
+                  <p className="mt-2 text-xs text-zinc-500">Sum of all categorized lines</p>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm font-medium text-zinc-500">Top Line</p>
+                  <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">
+                    {topBreakdownItem?.category_name || "No items yet"}
+                  </p>
+                  <p className="mt-2 text-xs text-zinc-500">
+                    {topBreakdownItem ? formatMoney(topBreakdownItem.amount) : "Largest categorized amount"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-[24px] border border-zinc-200 bg-zinc-50/70 p-5">
+                <div className="mb-4">
+                  <h4 className="text-base font-semibold text-zinc-950">Add Breakdown Item</h4>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Use mapped categories like Wages, Holiday Pay and Food Purchases to feed the main report automatically.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.2fr_0.8fr]">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-zinc-700">Category</label>
+                    <select
+                      value={newItem.category_id}
+                      onChange={(e) =>
+                        setNewItem((prev) => ({ ...prev, category_id: e.target.value }))
+                      }
+                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                    >
+                      <option value="">Select category</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name} ({category.type}
+                          {category.group ? ` • ${category.group}` : ""})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {foodCostMode === "manual" ? (
-                      <MoneyField
-                        label="Food Cost"
-                        value={String(form.food_cost)}
-                        onChange={(value) =>
-                          setForm((prev) => ({ ...prev, food_cost: Number(value) || 0 }))
-                        }
-                      />
-                    ) : (
-                      <>
-                        <PercentField
-                          label="Food Cost %"
-                          value={foodCostPercent}
-                          onChange={setFoodCostPercent}
-                        />
-                        <MoneyField
-                          label="Calculated Food Cost"
-                          value={computedFoodCost.toFixed(2)}
-                          onChange={() => {}}
-                          disabled
-                        />
-                      </>
-                    )}
+                  <MoneyField
+                    label="Amount"
+                    value={newItem.amount}
+                    onChange={(value) => setNewItem((prev) => ({ ...prev, amount: value }))}
+                  />
+
+                  <div className="md:col-span-2">
+                    <Field
+                      label="Notes"
+                      value={newItem.notes}
+                      onChange={(value) => setNewItem((prev) => ({ ...prev, notes: value }))}
+                      placeholder="Optional note for this line"
+                    />
                   </div>
                 </div>
 
-                <MoneyField
-                  label="Fixed Costs"
-                  value={String(form.fixed_costs)}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, fixed_costs: Number(value) || 0 }))
-                  }
-                />
-
-                <MoneyField
-                  label="Variable Costs"
-                  value={String(form.variable_costs)}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, variable_costs: Number(value) || 0 }))
-                  }
-                />
-
-                <MoneyField
-                  label="Loans / HP"
-                  value={String(form.loans_hp)}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, loans_hp: Number(value) || 0 }))
-                  }
-                />
-
-                <MoneyField
-                  label="VAT Due"
-                  value={String(form.vat_due)}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, vat_due: Number(value) || 0 }))
-                  }
-                />
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={handleAddBreakdownItem}
+                    disabled={addingItem}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Plus size={16} />
+                    {addingItem ? "Adding..." : "Add Breakdown Item"}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="rounded-[30px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold tracking-tight text-zinc-950">
-                Notes
-              </h3>
-              <p className="mt-1 text-sm text-zinc-500">
-                Weekly notes, context, anomalies, events or operational observations.
-              </p>
-
-              <textarea
-                rows={7}
-                value={form.notes || ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                className="mt-4 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
-                placeholder="Add operational notes, staffing context, promotions, issues or comments..."
-              />
-            </div>
+              <div className="mt-5">
+                {!breakdown || breakdown.items.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-sm text-zinc-500">
+                    No breakdown items added to this report yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-zinc-50 text-left text-zinc-500">
+                        <tr>
+                          <th className="px-4 py-4 font-medium">Category</th>
+                          <th className="px-4 py-4 font-medium">Type</th>
+                          <th className="px-4 py-4 font-medium">Group</th>
+                          <th className="px-4 py-4 font-medium">Amount</th>
+                          <th className="px-4 py-4 font-medium">Notes</th>
+                          <th className="px-4 py-4 text-right font-medium">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...(breakdown?.items || [])]
+                          .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+                          .map((item) => (
+                            <tr key={item.id} className="border-t border-zinc-100 bg-white">
+                              <td className="px-4 py-4 font-medium text-zinc-950">{item.category_name}</td>
+                              <td className="px-4 py-4">
+                                <span
+                                  className={cn(
+                                    "inline-flex rounded-full px-3 py-1 text-xs font-medium",
+                                    getTypePillClass(item.category_type)
+                                  )}
+                                >
+                                  {item.category_type}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4">
+                                <span
+                                  className={cn(
+                                    "inline-flex rounded-full px-3 py-1 text-xs font-medium",
+                                    getGroupPillClass(item.category_group)
+                                  )}
+                                >
+                                  {item.category_group || "Ungrouped"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4 font-semibold text-zinc-950">
+                                {formatMoney(item.amount)}
+                              </td>
+                              <td className="px-4 py-4 text-zinc-600">{item.notes || "-"}</td>
+                              <td className="px-4 py-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBreakdownItem(item.id)}
+                                  disabled={deletingItemId === item.id}
+                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Trash2 size={14} />
+                                  {deletingItemId === item.id ? "Deleting..." : "Delete"}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </SectionCard>
           </div>
 
           <div className="space-y-6">
-            <div className="rounded-[30px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <h3 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-zinc-950">
-                <Sparkles size={18} />
-                Live Margin Preview
-              </h3>
-
-              <div className="mt-5 space-y-3">
-                <MetricRow label="Gross Profit" value={formatMoney(grossProfit)} />
-                <MetricRow label="Gross Margin" value={formatPct(grossMarginPct)} />
-                <MetricRow label="Labour Total" value={formatMoney(labourTotal)} />
-                <MetricRow label="Labour %" value={formatPct(labourPct)} />
-                <MetricRow label="Net Profit" value={formatMoney(netProfit)} />
-                <MetricRow label="Net Margin" value={formatPct(netMarginPct)} />
+            <SectionCard
+              title="Margin Snapshot"
+              description="The financial story of this week, at a glance."
+              icon={<Target size={18} />}
+            >
+              <div className="space-y-3">
+                <ExecutiveRow label="Sales ex VAT" value={formatMoney(salesExVat)} />
+                <ExecutiveRow
+                  label="Gross Profit"
+                  value={formatMoney(grossProfit)}
+                  valueClassName={grossProfit > 0 ? "text-emerald-600" : "text-rose-600"}
+                />
+                <ExecutiveRow label="Gross Margin" value={formatPct(grossMarginPct)} />
+                <ExecutiveRow label="Labour Total" value={formatMoney(labourTotal)} />
+                <ExecutiveRow label="Labour %" value={formatPct(labourPct)} />
+                <ExecutiveRow
+                  label="Net Profit"
+                  value={formatMoney(netProfit)}
+                  valueClassName={netProfit > 0 ? "text-emerald-600" : "text-rose-600"}
+                />
+                <ExecutiveRow
+                  label="Net Margin"
+                  value={formatPct(netMarginPct)}
+                  valueClassName={netMarginPct >= 0.18 ? "text-emerald-600" : ""}
+                />
               </div>
-            </div>
+            </SectionCard>
 
-            <div className="rounded-[30px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <h3 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-zinc-950">
-                <Sparkles size={18} />
-                Insights & Recommendations
-              </h3>
-
-              <div className="mt-4 space-y-3">
-                {insights.map((item, index) => (
-                  <div
-                    key={index}
-                    className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"
-                  >
+            <SectionCard
+              title="Key Signals"
+              description="What matters most in this week."
+              icon={<Sparkles size={18} />}
+            >
+              <div className="space-y-3">
+                {goodSignals.map((item, index) => (
+                  <Signal key={`good-${index}`} tone="good">
                     {item}
-                  </div>
+                  </Signal>
                 ))}
-              </div>
-            </div>
 
-            <div className="rounded-[30px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <h3 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-zinc-950">
-                <CalendarDays size={18} />
-                Week Context
-              </h3>
+                {warningSignals.map((item, index) => (
+                  <Signal key={`warn-${index}`} tone="warn">
+                    {item}
+                  </Signal>
+                ))}
 
-              <div className="mt-5 space-y-3">
-                <MetricRow label="Week" value={isoWeekInfo ? String(isoWeekInfo.isoWeek) : "-"} />
-                <MetricRow label="Year" value={isoWeekInfo ? String(isoWeekInfo.isoYear) : "-"} />
-                <MetricRow label="Week Start" value={isoWeekInfo ? isoWeekInfo.start : "-"} />
-                <MetricRow label="Week End" value={isoWeekInfo ? isoWeekInfo.end : "-"} />
+                {goodSignals.length === 0 && warningSignals.length === 0 ? (
+                  <Signal>Weekly signals will appear as your data becomes richer.</Signal>
+                ) : null}
               </div>
-            </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Breakdown Summary"
+              description="Context and grouped totals in one place."
+              icon={<Layers3 size={18} />}
+            >
+              <div className="space-y-3">
+                <ExecutiveRow label="Week" value={isoWeekInfo ? String(isoWeekInfo.isoWeek) : "-"} />
+                <ExecutiveRow label="Year" value={isoWeekInfo ? String(isoWeekInfo.isoYear) : "-"} />
+                <ExecutiveRow label="Week Start" value={isoWeekInfo ? isoWeekInfo.start : "-"} />
+                <ExecutiveRow label="Week End" value={isoWeekInfo ? isoWeekInfo.end : "-"} />
+
+                {groupedSummaryRows
+                  .filter((row) => !["Week", "Year"].includes(row.label))
+                  .map((row) => (
+                    <ExecutiveRow
+                      key={row.label}
+                      label={row.label}
+                      value={formatMoney(row.value)}
+                    />
+                  ))}
+              </div>
+            </SectionCard>
           </div>
         </div>
       </div>

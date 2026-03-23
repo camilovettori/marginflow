@@ -1,59 +1,91 @@
-from decimal import Decimal
+from __future__ import annotations
+
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy.orm import Session
 
-from app.models.weekly_report import WeeklyReport
 from app.models.weekly_metrics import WeeklyMetrics
+from app.models.weekly_report import WeeklyReport
 
 
-WAGE_ALERT_THRESHOLD = Decimal("0.35")  # 35%
+WAGE_ALERT_THRESHOLD = Decimal("0.35")
+TWOPLACES = Decimal("0.01")
+FOURPLACES = Decimal("0.0001")
+
+
+def _to_decimal(value: object | None) -> Decimal:
+    try:
+        if value is None or value == "":
+            return Decimal("0.00")
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0.00")
+
+
+def _q2(value: Decimal) -> Decimal:
+    return value.quantize(TWOPLACES, rounding=ROUND_HALF_UP)
+
+
+def _q4(value: Decimal) -> Decimal:
+    return value.quantize(FOURPLACES, rounding=ROUND_HALF_UP)
 
 
 def calculate_metrics(report: WeeklyReport) -> dict:
-    """
-    Recebe um WeeklyReport e retorna um dict com os campos calculados.
-    Não grava no banco. Só calcula.
-    """
-    sales = Decimal(report.sales_ex_vat or 0)
-    wages = Decimal(report.wages or 0)
-    holiday = Decimal(report.holiday_pay or 0)
-    food = Decimal(report.food_cost or 0)
-    fixed = Decimal(report.fixed_costs or 0)
-    variable = Decimal(report.variable_costs or 0)
-    loans = Decimal(report.loans_hp or 0)
+    sales_ex_vat = _to_decimal(report.sales_ex_vat)
+    wages = _to_decimal(report.wages)
+    holiday_pay = _to_decimal(report.holiday_pay)
+    food_cost = _to_decimal(report.food_cost)
+    fixed_costs = _to_decimal(report.fixed_costs)
+    variable_costs = _to_decimal(report.variable_costs)
+    loans_hp = _to_decimal(report.loans_hp)
+    vat_due = _to_decimal(report.vat_due)
 
-    total_wages = wages + holiday
+    labour_total = wages + holiday_pay
 
-    gross_profit = sales - food
-    gross_margin = (gross_profit / sales) if sales > 0 else Decimal("0")
+    gross_profit = sales_ex_vat - food_cost
+    gross_margin_pct = gross_profit / sales_ex_vat if sales_ex_vat > 0 else Decimal("0")
 
-    wage_pct = (total_wages / sales) if sales > 0 else Decimal("0")
-    wage_pct_ex_holiday = (wages / sales) if sales > 0 else Decimal("0")
+    labour_pct = labour_total / sales_ex_vat if sales_ex_vat > 0 else Decimal("0")
+    wage_pct_ex_holiday = wages / sales_ex_vat if sales_ex_vat > 0 else Decimal("0")
 
-    cash_left = gross_profit - total_wages
+    cash_left_after_wages_food = gross_profit - labour_total
 
-    projected_net = gross_profit - total_wages - fixed - variable - loans
-    net_margin = (projected_net / sales) if sales > 0 else Decimal("0")
+    net_profit = (
+        sales_ex_vat
+        - labour_total
+        - food_cost
+        - fixed_costs
+        - variable_costs
+        - loans_hp
+        - vat_due
+    )
+    net_margin_pct = net_profit / sales_ex_vat if sales_ex_vat > 0 else Decimal("0")
 
     return {
-        "gross_profit": gross_profit,
-        "gross_margin_pct": gross_margin,
-        "wage_pct": wage_pct,
-        "wage_pct_ex_holiday": wage_pct_ex_holiday,
-        "cash_left_after_wages_food": cash_left,
-        "projected_net_profit": projected_net,
-        "net_margin_pct": net_margin,
-        "flag_high_wage": wage_pct > WAGE_ALERT_THRESHOLD,
-        "flag_negative_profit": projected_net < 0,
+        "gross_profit": _q2(gross_profit),
+        "gross_margin_pct": _q4(gross_margin_pct),
+        "wage_pct": _q4(labour_pct),
+        "wage_pct_ex_holiday": _q4(wage_pct_ex_holiday),
+        "cash_left_after_wages_food": _q2(cash_left_after_wages_food),
+        "projected_net_profit": _q2(net_profit),
+        "net_margin_pct": _q4(net_margin_pct),
+        "flag_high_wage": labour_pct > WAGE_ALERT_THRESHOLD,
+        "flag_negative_profit": net_profit < 0,
+        "_derived": {
+            "sales_ex_vat": _q2(sales_ex_vat),
+            "labour_total": _q2(labour_total),
+            "gross_profit": _q2(gross_profit),
+            "gross_margin_pct": _q4(gross_margin_pct),
+            "labour_pct": _q4(labour_pct),
+            "net_profit": _q2(net_profit),
+            "net_margin_pct": _q4(net_margin_pct),
+        },
     }
 
 
 def persist_metrics(db: Session, report: WeeklyReport) -> WeeklyMetrics:
-    """
-    Calcula e grava métricas no banco usando a mesma sessão/transaction.
-    Faz UPSERT por weekly_report_id.
-    """
     data = calculate_metrics(report)
+    db_payload = {k: v for k, v in data.items() if k != "_derived"}
 
     existing = (
         db.query(WeeklyMetrics)
@@ -62,15 +94,15 @@ def persist_metrics(db: Session, report: WeeklyReport) -> WeeklyMetrics:
     )
 
     if existing:
-        for k, v in data.items():
-            setattr(existing, k, v)
+        for key, value in db_payload.items():
+            setattr(existing, key, value)
         return existing
 
     metrics = WeeklyMetrics(
         tenant_id=report.tenant_id,
         company_id=report.company_id,
         weekly_report_id=report.id,
-        **data,
+        **db_payload,
     )
     db.add(metrics)
     return metrics

@@ -278,6 +278,75 @@ export type TenantMemberRoleUpdatePayload = {
   role: string
 }
 
+export type FinancialCategory = {
+  id: string
+  tenant_id: string
+  name: string
+  type: string
+  group?: string | null
+  is_active: boolean
+  created_at?: string
+}
+
+export type FinancialCategoryCreatePayload = {
+  name: string
+  type: string
+  group?: string | null
+  is_active?: boolean
+}
+
+export type FinancialCategoryUpdatePayload = {
+  name: string
+  type: string
+  group?: string | null
+  is_active: boolean
+}
+
+export type WeeklyReportItem = {
+  id: string
+  tenant_id: string
+  company_id: string
+  weekly_report_id: string
+  category_id: string
+  amount: number
+  notes?: string | null
+  created_at?: string
+}
+
+export type WeeklyReportItemCreatePayload = {
+  category_id: string
+  amount: number
+  notes?: string | null
+}
+
+export type WeeklyReportItemUpdatePayload = {
+  category_id: string
+  amount: number
+  notes?: string | null
+}
+
+export type WeeklyReportBreakdownItem = {
+  id: string
+  category_id: string
+  category_name: string
+  category_type: string
+  category_group?: string | null
+  amount: number
+  notes?: string | null
+}
+
+export type WeeklyReportBreakdownGroupTotal = {
+  key: string
+  total: number
+}
+
+export type WeeklyReportBreakdownResponse = {
+  report: WeeklyReportDetail
+  items: WeeklyReportBreakdownItem[]
+  totals_by_type: WeeklyReportBreakdownGroupTotal[]
+  totals_by_group: WeeklyReportBreakdownGroupTotal[]
+}
+
 const ACCESS_TOKEN_KEY = "marginflow_access_token"
 const REFRESH_TOKEN_KEY = "marginflow_refresh_token"
 const ACTIVE_TENANT_KEY = "mf_tenant_id"
@@ -756,4 +825,92 @@ export async function registerUser(payload: {
   }
 
   return res.json() as Promise<RegisterResponse>
+}
+
+export async function getFinancialCategories(): Promise<FinancialCategory[]> {
+  return authFetch<FinancialCategory[]>("/api/financial-categories/", {
+    method: "GET",
+  })
+}
+
+export async function getFinancialCategoryById(
+  categoryId: string
+): Promise<FinancialCategory> {
+  return authFetch<FinancialCategory>(`/api/financial-categories/${categoryId}`, {
+    method: "GET",
+  })
+}
+
+export async function createFinancialCategory(
+  payload: FinancialCategoryCreatePayload
+): Promise<FinancialCategory> {
+  return authFetch<FinancialCategory>("/api/financial-categories/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateFinancialCategory(
+  categoryId: string,
+  payload: FinancialCategoryUpdatePayload
+): Promise<FinancialCategory> {
+  return authFetch<FinancialCategory>(`/api/financial-categories/${categoryId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteFinancialCategory(
+  categoryId: string
+): Promise<{ success: boolean }> {
+  return authFetch<{ success: boolean }>(`/api/financial-categories/${categoryId}`, {
+    method: "DELETE",
+  })
+}
+
+export async function getWeeklyReportItems(
+  weeklyReportId: string
+): Promise<WeeklyReportItem[]> {
+  return authFetch<WeeklyReportItem[]>(`/api/weekly-report-items/report/${weeklyReportId}`, {
+    method: "GET",
+  })
+}
+
+export async function createWeeklyReportItem(
+  weeklyReportId: string,
+  payload: WeeklyReportItemCreatePayload
+): Promise<WeeklyReportItem> {
+  return authFetch<WeeklyReportItem>(`/api/weekly-report-items/report/${weeklyReportId}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateWeeklyReportItem(
+  itemId: string,
+  payload: WeeklyReportItemUpdatePayload
+): Promise<WeeklyReportItem> {
+  return authFetch<WeeklyReportItem>(`/api/weekly-report-items/${itemId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteWeeklyReportItem(
+  itemId: string
+): Promise<{ success: boolean }> {
+  return authFetch<{ success: boolean }>(`/api/weekly-report-items/${itemId}`, {
+    method: "DELETE",
+  })
+}
+
+export async function getWeeklyReportBreakdown(
+  weeklyReportId: string
+): Promise<WeeklyReportBreakdownResponse> {
+  return authFetch<WeeklyReportBreakdownResponse>(
+    `/api/weekly-reports/${weeklyReportId}/breakdown`,
+    {
+      method: "GET",
+    }
+  )
 }
