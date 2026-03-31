@@ -298,98 +298,8 @@ export default function CompanyWeeklyReportsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] text-zinc-950">
-      <div className="grid min-h-screen grid-cols-1 xl:grid-cols-[300px_1fr]">
-        <aside className="flex min-h-screen flex-col border-r border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(242,242,245,0.9))] px-5 py-7 backdrop-blur">
-          <div className="rounded-[32px] border border-white/80 bg-white/70 p-5 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-950 text-white shadow-sm">
-                <BarChart3 size={20} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight">MarginFlow</h1>
-                <p className="text-sm text-zinc-500">Margin intelligence</p>
-              </div>
-            </div>
-          </div>
-
-          <nav className="mt-8 space-y-2">
-            <Link
-              href="/"
-              className="block rounded-2xl px-4 py-3 text-sm text-zinc-500 transition hover:bg-white/70"
-            >
-              <div className="flex items-center gap-3">
-                <BarChart3 size={16} />
-                Dashboard
-              </div>
-            </Link>
-
-            <div className="rounded-2xl px-4 py-3 text-sm text-zinc-500">Companies</div>
-
-            <div className="space-y-2 pl-3">
-              {companies.map((item) => {
-                const isActive = item.id === companyId
-
-                return (
-                  <Link
-                    key={item.id}
-                    href={`/companies/${item.id}`}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition ${
-                      isActive
-                        ? "bg-white text-zinc-950 shadow-sm ring-1 ring-zinc-200"
-                        : "text-zinc-500 hover:bg-white/70"
-                    }`}
-                  >
-                    <Building2 size={16} />
-                    <span className="truncate">{item.name}</span>
-                  </Link>
-                )
-              })}
-            </div>
-
-            <Link
-              href={`/companies/${companyId}/reports`}
-              className="block rounded-2xl bg-white px-4 py-3 text-sm text-zinc-950 shadow-sm ring-1 ring-zinc-200"
-            >
-              <div className="flex items-center gap-3">
-                <FileText size={16} />
-                Weekly Reports
-              </div>
-            </Link>
-
-            <Link
-              href={`/companies/${companyId}/analytics`}
-              className="block rounded-2xl px-4 py-3 text-sm text-zinc-500 transition hover:bg-white/70"
-            >
-              <div className="flex items-center gap-3">
-                <CalendarDays size={16} />
-                Analytics
-              </div>
-            </Link>
-          </nav>
-
-          <div className="mt-8 rounded-[28px] border border-white/80 bg-white/75 p-5 shadow-sm">
-            <p className="flex items-center gap-2 text-sm font-semibold text-zinc-950">
-              <Sparkles size={14} />
-              Weekly Intelligence
-            </p>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">
-              Review weekly margin performance, select reports in bulk, and manage historical reporting with a cleaner premium workflow.
-            </p>
-          </div>
-
-          <div className="mt-auto pt-8">
-            <Link
-              href={`/companies/${companyId}/settings`}
-              className="flex w-full items-center gap-3 rounded-2xl bg-white/90 px-4 py-3 text-sm text-zinc-600 shadow-sm ring-1 ring-zinc-200 transition hover:bg-white"
-            >
-              <Settings size={16} />
-              Settings
-            </Link>
-          </div>
-        </aside>
-
-        <section className="px-6 py-7 md:px-8 xl:px-10">
+    <>
+      <div className="space-y-8">
           <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="mb-4">
@@ -705,7 +615,6 @@ export default function CompanyWeeklyReportsPage() {
               </div>
             </>
           )}
-        </section>
       </div>
 
       {showSyncModal && (
@@ -866,6 +775,6 @@ export default function CompanyWeeklyReportsPage() {
           </div>
         </div>
       )}
-    </main>
+    </>
   )
 }

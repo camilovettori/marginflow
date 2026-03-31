@@ -147,7 +147,7 @@ function SectionCard({
   return (
     <section
       className={cn(
-        "rounded-[30px] border border-zinc-200/80 bg-white/90 p-6 shadow-[0_10px_30px_rgba(15,23,42,0.04)] backdrop-blur-sm",
+        "rounded-[30px] border border-black/5 bg-white/95 p-6 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.04)] backdrop-blur-sm",
         className
       )}
     >
@@ -159,7 +159,9 @@ function SectionCard({
         ) : null}
 
         <div>
-          <h3 className="text-[1.15rem] font-semibold tracking-tight text-zinc-950">{title}</h3>
+          <h3 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-zinc-950">
+            {title}
+          </h3>
           {description ? <p className="mt-1 text-sm text-zinc-500">{description}</p> : null}
         </div>
       </div>
@@ -178,7 +180,7 @@ function SubCard({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-[24px] border border-zinc-200/80 bg-zinc-50/70 p-5">
+    <div className="rounded-[24px] border border-black/5 bg-zinc-50/70 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
       <div className="mb-4 flex items-center gap-2">
         {icon ? <span className="text-zinc-500">{icon}</span> : null}
         <h4 className="text-sm font-semibold text-zinc-950">{title}</h4>
@@ -283,16 +285,16 @@ function KPI({
   label,
   value,
   caption,
-  positive = false,
+  tone = "default",
 }: {
   icon: React.ReactNode
   label: string
   value: string
   caption: string
-  positive?: boolean
+  tone?: "default" | "success" | "warning"
 }) {
   return (
-    <div className="rounded-[28px] border border-zinc-200/80 bg-white/90 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+    <div className="rounded-[28px] border border-black/5 bg-white/95 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.04)]">
       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
         {icon}
       </div>
@@ -300,7 +302,9 @@ function KPI({
       <p
         className={cn(
           "mt-2 text-4xl font-semibold tracking-tight",
-          positive ? "text-emerald-600" : "text-zinc-950"
+          tone === "success" && "text-emerald-600",
+          tone === "warning" && "text-amber-600",
+          tone === "default" && "text-zinc-950"
         )}
       >
         {value}
@@ -524,11 +528,6 @@ export default function WeeklyReportDetailPage() {
   const groupedSummaryRows = useMemo(() => {
     const rows: Array<{ label: string; value: number }> = []
 
-    if (isoWeekInfo) {
-      rows.push({ label: "Week", value: Number(isoWeekInfo.isoWeek) })
-      rows.push({ label: "Year", value: Number(isoWeekInfo.isoYear) })
-    }
-
     ;(breakdown?.totals_by_type || []).forEach((row) => {
       rows.push({ label: `Type · ${row.key}`, value: row.total })
     })
@@ -538,13 +537,15 @@ export default function WeeklyReportDetailPage() {
     })
 
     return rows
-  }, [breakdown, isoWeekInfo])
+  }, [breakdown])
 
   const goodSignals = useMemo(() => {
     const signals: string[] = []
 
     if (netMarginPct >= 0.18) {
-      signals.push("Strong week. Profitability is healthy and the business is operating inside a good efficiency range.")
+      signals.push(
+        "Strong week. Profitability is healthy and the business is operating inside a good efficiency range."
+      )
     }
 
     if (grossMarginPct >= 0.65) {
@@ -552,7 +553,9 @@ export default function WeeklyReportDetailPage() {
     }
 
     if (breakdownLineCount > 0) {
-      signals.push("Categorized P&L structure is active. Breakdown lines are helping standardize the weekly report.")
+      signals.push(
+        "Categorized P&L structure is active. Breakdown lines are helping standardize the weekly report."
+      )
     }
 
     return signals
@@ -562,11 +565,15 @@ export default function WeeklyReportDetailPage() {
     const signals: string[] = []
 
     if (netMarginPct < 0.1) {
-      signals.push("Margin is under target. Focus on cost control, pricing discipline and operational efficiency.")
+      signals.push(
+        "Margin is under target. Focus on cost control, pricing discipline and operational efficiency."
+      )
     }
 
     if (labourPct > 0.35) {
-      signals.push("Labour pressure is high for the current revenue level. Review rota efficiency and staffing mix.")
+      signals.push(
+        "Labour pressure is high for the current revenue level. Review rota efficiency and staffing mix."
+      )
     }
 
     if (grossMarginPct < 0.6) {
@@ -609,36 +616,42 @@ export default function WeeklyReportDetailPage() {
     }
   }
 
+  async function saveReportSilently(): Promise<WeeklyReportDetail> {
+    const payload: WeeklyReportUpdatePayload = {
+      ...form,
+      food_cost: Number(computedFoodCost.toFixed(2)),
+    }
+
+    const updated = await updateWeeklyReport(reportId, payload)
+
+    setReport(updated)
+    setForm({
+      company_id: updated.company_id,
+      week_ending: formatDateInput(updated.week_ending),
+      sales_inc_vat: updated.sales_inc_vat || 0,
+      sales_ex_vat: updated.sales_ex_vat || 0,
+      wages: updated.wages || 0,
+      holiday_pay: updated.holiday_pay || 0,
+      food_cost: updated.food_cost || 0,
+      fixed_costs: updated.fixed_costs || 0,
+      variable_costs: updated.variable_costs || 0,
+      loans_hp: updated.loans_hp || 0,
+      vat_due: updated.vat_due || 0,
+      notes: updated.notes || "",
+    })
+
+    return updated
+  }
+
   async function handleSave() {
     try {
       setSaving(true)
       setError(null)
       setSuccessMessage(null)
 
-      const payload: WeeklyReportUpdatePayload = {
-        ...form,
-        food_cost: Number(computedFoodCost.toFixed(2)),
-      }
-
-      const updated = await updateWeeklyReport(reportId, payload)
-      setReport(updated)
-
-      setForm({
-        company_id: updated.company_id,
-        week_ending: formatDateInput(updated.week_ending),
-        sales_inc_vat: updated.sales_inc_vat || 0,
-        sales_ex_vat: updated.sales_ex_vat || 0,
-        wages: updated.wages || 0,
-        holiday_pay: updated.holiday_pay || 0,
-        food_cost: updated.food_cost || 0,
-        fixed_costs: updated.fixed_costs || 0,
-        variable_costs: updated.variable_costs || 0,
-        loans_hp: updated.loans_hp || 0,
-        vat_due: updated.vat_due || 0,
-        notes: updated.notes || "",
-      })
-
+      await saveReportSilently()
       await reloadBreakdown()
+
       setSuccessMessage("Weekly report updated successfully.")
     } catch (err) {
       console.error("Save report error:", err)
@@ -654,13 +667,16 @@ export default function WeeklyReportDetailPage() {
       setError(null)
       setSuccessMessage(null)
 
+      await saveReportSilently()
+      await reloadBreakdown()
+
       const result = await generateWeeklyReportPdf(reportId)
 
       if (result.download_url) {
-        window.open(result.download_url, "_blank")
+        window.open(result.download_url, "_blank", "noopener,noreferrer")
       }
 
-      setSuccessMessage("PDF generation started successfully.")
+      setSuccessMessage("PDF generated successfully.")
     } catch (err) {
       console.error("Generate PDF error:", err)
       setError(err instanceof Error ? err.message : "Failed to generate PDF.")
@@ -674,6 +690,9 @@ export default function WeeklyReportDetailPage() {
       setBusyAction("email")
       setError(null)
       setSuccessMessage(null)
+
+      await saveReportSilently()
+      await reloadBreakdown()
 
       const result = await sendWeeklyReportEmail(reportId)
       setSuccessMessage(result.message || "Weekly report email sent successfully.")
@@ -713,7 +732,9 @@ export default function WeeklyReportDetailPage() {
       })
 
       await reloadBreakdown()
-      setSuccessMessage("Breakdown item added successfully. Core mapped fields were updated where applicable.")
+      setSuccessMessage(
+        "Breakdown item added successfully. Core mapped fields were updated where applicable."
+      )
     } catch (err) {
       console.error("Add breakdown item error:", err)
       setError(err instanceof Error ? err.message : "Failed to add breakdown item.")
@@ -764,7 +785,7 @@ export default function WeeklyReportDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-6 py-8 text-zinc-950 md:px-8 xl:px-10">
+    <div className="space-y-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex flex-col gap-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -777,14 +798,14 @@ export default function WeeklyReportDetailPage() {
                 Back to Weekly Reports
               </Link>
 
-              <div className="inline-flex max-w-full items-start gap-4 rounded-[28px] border border-zinc-200/80 bg-white/90 px-5 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+              <div className="inline-flex max-w-full items-start gap-4 rounded-[28px] border border-black/5 bg-[linear-gradient(to_bottom,#ffffff,#fafafa)] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.04)]">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-zinc-950 text-white">
                   <Building2 size={20} />
                 </div>
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="truncate text-[1.15rem] font-semibold tracking-tight text-zinc-950">
+                    <h1 className="truncate text-[1.15rem] font-semibold tracking-[-0.02em] text-zinc-950">
                       {report.company_name || "Selected Company"} — Weekly Intelligence Report
                     </h1>
                     <span
@@ -808,7 +829,7 @@ export default function WeeklyReportDetailPage() {
             <div className="flex flex-wrap items-center gap-3 self-start">
               <button
                 onClick={handleGeneratePdf}
-                disabled={busyAction !== null}
+                disabled={busyAction !== null || saving}
                 className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Download size={16} />
@@ -817,7 +838,7 @@ export default function WeeklyReportDetailPage() {
 
               <button
                 onClick={handleSendEmail}
-                disabled={busyAction !== null}
+                disabled={busyAction !== null || saving}
                 className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Mail size={16} />
@@ -826,7 +847,7 @@ export default function WeeklyReportDetailPage() {
 
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || busyAction !== null}
                 className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Save size={16} />
@@ -848,7 +869,7 @@ export default function WeeklyReportDetailPage() {
           ) : null}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           <KPI
             icon={<Wallet size={18} />}
             label="Sales ex VAT"
@@ -860,20 +881,21 @@ export default function WeeklyReportDetailPage() {
             label="Net Profit"
             value={formatMoney(netProfit)}
             caption="Bottom-line result"
-            positive={netProfit > 0}
+            tone={netProfit > 0 ? "success" : "default"}
           />
           <KPI
             icon={<Percent size={18} />}
             label="Net Margin"
             value={formatPct(netMarginPct)}
             caption="Profitability quality"
-            positive={netMarginPct >= 0.18}
+            tone={netMarginPct >= 0.18 ? "success" : "default"}
           />
           <KPI
             icon={<Settings2 size={18} />}
             label="Labour %"
             value={formatPct(labourPct)}
             caption="Pressure vs revenue"
+            tone={labourPct > 0.25 ? "warning" : "default"}
           />
         </div>
 
@@ -1062,7 +1084,7 @@ export default function WeeklyReportDetailPage() {
               icon={<Layers3 size={18} />}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                   <p className="text-sm font-medium text-zinc-500">Breakdown Lines</p>
                   <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
                     {breakdownLineCount}
@@ -1070,7 +1092,7 @@ export default function WeeklyReportDetailPage() {
                   <p className="mt-2 text-xs text-zinc-500">Categorized entries in this report</p>
                 </div>
 
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                   <p className="text-sm font-medium text-zinc-500">Breakdown Total</p>
                   <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
                     {formatMoney(breakdownTotal)}
@@ -1078,13 +1100,15 @@ export default function WeeklyReportDetailPage() {
                   <p className="mt-2 text-xs text-zinc-500">Sum of all categorized lines</p>
                 </div>
 
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                   <p className="text-sm font-medium text-zinc-500">Top Line</p>
                   <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">
                     {topBreakdownItem?.category_name || "No items yet"}
                   </p>
                   <p className="mt-2 text-xs text-zinc-500">
-                    {topBreakdownItem ? formatMoney(topBreakdownItem.amount) : "Largest categorized amount"}
+                    {topBreakdownItem
+                      ? formatMoney(topBreakdownItem.amount)
+                      : "Largest categorized amount"}
                   </p>
                 </div>
               </div>
@@ -1093,7 +1117,8 @@ export default function WeeklyReportDetailPage() {
                 <div className="mb-4">
                   <h4 className="text-base font-semibold text-zinc-950">Add Breakdown Item</h4>
                   <p className="mt-1 text-sm text-zinc-500">
-                    Use mapped categories like Wages, Holiday Pay and Food Purchases to feed the main report automatically.
+                    Use mapped categories like Wages, Holiday Pay and Food Purchases to feed the
+                    main report automatically.
                   </p>
                 </div>
 
@@ -1168,8 +1193,13 @@ export default function WeeklyReportDetailPage() {
                         {[...(breakdown?.items || [])]
                           .sort((a, b) => (b.amount || 0) - (a.amount || 0))
                           .map((item) => (
-                            <tr key={item.id} className="border-t border-zinc-100 bg-white">
-                              <td className="px-4 py-4 font-medium text-zinc-950">{item.category_name}</td>
+                            <tr
+                              key={item.id}
+                              className="border-t border-zinc-100 bg-white transition hover:bg-zinc-50"
+                            >
+                              <td className="px-4 py-4 font-medium text-zinc-950">
+                                {item.category_name}
+                              </td>
                               <td className="px-4 py-4">
                                 <span
                                   className={cn(
@@ -1199,7 +1229,7 @@ export default function WeeklyReportDetailPage() {
                                   type="button"
                                   onClick={() => handleDeleteBreakdownItem(item.id)}
                                   disabled={deletingItemId === item.id}
-                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   <Trash2 size={14} />
                                   {deletingItemId === item.id ? "Deleting..." : "Delete"}
@@ -1230,7 +1260,11 @@ export default function WeeklyReportDetailPage() {
                 />
                 <ExecutiveRow label="Gross Margin" value={formatPct(grossMarginPct)} />
                 <ExecutiveRow label="Labour Total" value={formatMoney(labourTotal)} />
-                <ExecutiveRow label="Labour %" value={formatPct(labourPct)} />
+                <ExecutiveRow
+                  label="Labour %"
+                  value={formatPct(labourPct)}
+                  valueClassName={labourPct > 0.25 ? "text-amber-600" : ""}
+                />
                 <ExecutiveRow
                   label="Net Profit"
                   value={formatMoney(netProfit)}
@@ -1279,20 +1313,14 @@ export default function WeeklyReportDetailPage() {
                 <ExecutiveRow label="Week Start" value={isoWeekInfo ? isoWeekInfo.start : "-"} />
                 <ExecutiveRow label="Week End" value={isoWeekInfo ? isoWeekInfo.end : "-"} />
 
-                {groupedSummaryRows
-                  .filter((row) => !["Week", "Year"].includes(row.label))
-                  .map((row) => (
-                    <ExecutiveRow
-                      key={row.label}
-                      label={row.label}
-                      value={formatMoney(row.value)}
-                    />
-                  ))}
+                {groupedSummaryRows.map((row) => (
+                  <ExecutiveRow key={row.label} label={row.label} value={formatMoney(row.value)} />
+                ))}
               </div>
             </SectionCard>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   )
 }

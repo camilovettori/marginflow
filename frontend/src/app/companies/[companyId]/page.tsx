@@ -361,103 +361,7 @@ export default function CompanyPage() {
 }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.9),_rgba(244,244,245,1)_40%,_rgba(240,240,243,1)_100%)] text-zinc-950">
-      <div className="grid min-h-screen grid-cols-1 xl:grid-cols-[300px_1fr]">
-        <aside className="flex min-h-screen flex-col border-r border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,244,246,0.86))] px-5 py-7 backdrop-blur">
-          <div className="rounded-[32px] border border-white/70 bg-white/50 p-5 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-950 text-white shadow-sm">
-                <BarChart3 size={20} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight">MarginFlow</h1>
-                <p className="text-sm text-zinc-500">Margin intelligence</p>
-              </div>
-            </div>
-          </div>
-
-          <nav className="mt-8 space-y-2">
-            <Link
-              href="/"
-              className="block rounded-2xl px-4 py-3 text-sm text-zinc-500 transition hover:bg-white/70"
-            >
-              <div className="flex items-center gap-3">
-                <BarChart3 size={16} />
-                Dashboard
-              </div>
-            </Link>
-
-            <div className="rounded-2xl px-4 py-3 text-sm text-zinc-500">Companies</div>
-
-            <div className="space-y-2 pl-3">
-              {companies.map((item) => {
-                const isActive = item.id === companyId
-
-                return (
-                  <Link
-                    key={item.id}
-                    href={`/companies/${item.id}`}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition ${
-                      isActive
-                        ? "bg-white text-zinc-950 shadow-sm ring-1 ring-zinc-200"
-                        : "text-zinc-500 hover:bg-white/70"
-                    }`}
-                  >
-                    <Building2 size={16} />
-                    <span className="truncate">{item.name}</span>
-                  </Link>
-                )
-              })}
-
-              <Link
-                href="/companies/new"
-                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium text-zinc-700 transition hover:bg-white/70"
-              >
-                <Plus size={16} />
-                <span>Add Company</span>
-              </Link>
-            </div>
-
-            <Link
-              href={`/companies/${companyId}/reports`}
-              className="block rounded-2xl px-4 py-3 text-sm text-zinc-500 transition hover:bg-white/70"
-            >
-              <div className="flex items-center gap-3">
-                <FileText size={16} />
-                Weekly Reports
-              </div>
-            </Link>
-
-            <Link
-              href={`/companies/${companyId}/analytics`}
-              className="block rounded-2xl px-4 py-3 text-sm text-zinc-500 transition hover:bg-white/70"
-            >
-              <div className="flex items-center gap-3">
-                <CalendarDays size={16} />
-                Analytics
-              </div>
-            </Link>
-          </nav>
-
-          <div className="mt-8 rounded-[28px] border border-white/70 bg-white/60 p-5 shadow-sm">
-            <p className="text-sm font-semibold text-zinc-950">Company View</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">
-              Focused performance view for a single company.
-            </p>
-          </div>
-
-          <div className="mt-auto pt-8">
-            <Link
-              href={`/companies/${companyId}/settings`}
-              className="flex w-full items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 text-sm text-zinc-600 shadow-sm ring-1 ring-zinc-200 transition hover:bg-white"
-            >
-              <Settings size={16} />
-              Settings
-            </Link>
-          </div>
-        </aside>
-
-        <section className="px-6 py-7 md:px-8 xl:px-10">
+    <div className="space-y-8">
           <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-5xl font-semibold tracking-tight text-zinc-950">
@@ -811,8 +715,6 @@ export default function CompanyPage() {
               </div>
             </>
           )}
-        </section>
-      </div>
-    </main>
+    </div>
   )
 }
