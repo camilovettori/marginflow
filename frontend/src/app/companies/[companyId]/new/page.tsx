@@ -24,6 +24,7 @@ import {
   TrendingUp,
   RefreshCw,
 } from "lucide-react"
+import WorkspacePageHeader from "@/components/workspace-page-header"
 
 type CustomField = {
   id: string
@@ -491,7 +492,30 @@ export default function NewWeeklyReportPage() {
 
   return (
     <div className="space-y-8">
-          <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <WorkspacePageHeader
+        label="Weekly report creation"
+        title="Add Weekly Report"
+        subtitle={`Structured input for sales, operating costs and live margin preview for ${company?.name ?? "this company"}.`}
+        companyName={loadingCompany ? "Loading..." : company?.name || "Selected Company"}
+        companyMeta="Create a company-scoped weekly report with sales, margins, and cost detail."
+        companyBadge={
+          <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Draft workspace
+          </span>
+        }
+        actions={
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Save size={16} />
+            {saving ? "Saving..." : "Save Report"}
+          </button>
+        }
+      />
+
+      <div className="hidden mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="mb-4">
                 <Link

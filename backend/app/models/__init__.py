@@ -6,5 +6,7 @@ from app.models.user import User
 from app.models.tenant_user import TenantUser
 from app.models.refresh_token import RefreshToken
 from app.models.zoho_connection import ZohoConnection
+from app.models.zoho_sales_invoice import ZohoSalesInvoice
+from app.models.zoho_sales_invoice_item import ZohoSalesInvoiceItem
 from app.models.financial_category import FinancialCategory
 from app.models.weekly_report_item import WeeklyReportItem

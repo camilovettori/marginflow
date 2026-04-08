@@ -20,6 +20,7 @@ from app.routes.zoho import (
     ZOHO_INVOICE_API_BASE,
     _utcnow,
 )
+from app.services.zoho_sales_service import persist_sales_ledger
 from app.services.metrics_service import persist_metrics
 
 router = APIRouter(prefix="/api/integrations/zoho", tags=["Zoho Sync"])
@@ -405,6 +406,15 @@ async def sync_zoho_invoices_to_weekly_reports(
         organization_id=organization_id,
     )
 
+    ledger_counts = persist_sales_ledger(
+        db,
+        tenant_id=tenant_id,
+        company_id=company_id,
+        invoices=invoices,
+        start_date=resolved_from,
+        end_date=resolved_to,
+    )
+
     weekly_totals = _build_weekly_totals(
         invoices=invoices,
         date_from=resolved_from,
@@ -475,6 +485,8 @@ async def sync_zoho_invoices_to_weekly_reports(
         "date_from": str(resolved_from) if resolved_from else None,
         "date_to": str(resolved_to) if resolved_to else None,
         "weeks_detected": len(weekly_totals),
+        "invoices_synced": ledger_counts["invoices_synced"],
+        "line_items_synced": ledger_counts["items_synced"],
         "created_reports": created_count,
         "updated_reports": updated_count,
         "skipped_existing_reports": skipped_existing_reports,

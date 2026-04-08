@@ -32,7 +32,7 @@ ZOHO_INVOICE_API_BASE = os.getenv(
 )
 ZOHO_OAUTH_SCOPES = os.getenv(
     "ZOHO_OAUTH_SCOPES",
-    "ZohoInvoice.invoices.READ,ZohoInvoice.settings.READ",
+    "ZohoInvoice.invoices.READ,ZohoInvoice.invoices.CREATE,ZohoInvoice.contacts.READ,ZohoInvoice.contacts.CREATE,ZohoInvoice.settings.READ,ZohoInvoice.settings.CREATE",
 )
 ZOHO_STATE_SECRET = os.getenv(
     "ZOHO_STATE_SECRET",
@@ -269,3 +269,41 @@ async def zoho_callback(
         url=_company_settings_url(company_id, zoho_connected="1", zoho_org_pending="1"),
         status_code=302,
     )
+
+
+@router.delete("/disconnect/{company_id}")
+def disconnect_zoho(
+    company_id: UUID,
+    tenant_id: UUID = Query(...),
+    db: Session = Depends(get_db),
+):
+    company = (
+        db.query(Company)
+        .filter(Company.id == company_id, Company.tenant_id == tenant_id)
+        .first()
+    )
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    connection = (
+        db.query(ZohoConnection)
+        .filter(
+            ZohoConnection.company_id == company_id,
+            ZohoConnection.tenant_id == tenant_id,
+        )
+        .first()
+    )
+
+    if connection:
+        db.delete(connection)
+
+    company.sales_source = "manual"
+    company.zoho_org_id = None
+    company.integration_notes = "Zoho disconnected"
+    db.commit()
+
+    return {
+        "success": True,
+        "company_id": str(company_id),
+        "connected": False,
+    }

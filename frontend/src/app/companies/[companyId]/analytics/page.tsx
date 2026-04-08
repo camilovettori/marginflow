@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { getCompanyById, getDashboard, type Company, type DashboardData } from "@/services/api"
+import WorkspacePageHeader from "@/components/workspace-page-header"
 import { ArrowLeft, BarChart3, TrendingUp, Wallet, Target, Percent } from "lucide-react"
 
 function fmtMoney(value: number) {
@@ -109,7 +110,20 @@ export default function CompanyAnalyticsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <WorkspacePageHeader
+        label="Company analytics"
+        title="Analytics"
+        subtitle={`Trends, margin behaviour, and operating signals for ${company?.name ?? "this company"}.`}
+        companyName={company?.name ?? "Loading..."}
+        companyMeta="All analytics are scoped to this company."
+        companyBadge={
+          <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            {dashboard ? `${dashboard.last_weeks.length} weekly points` : "Weekly trend"}
+          </span>
+        }
+      />
+
+      <div className="hidden flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <Link
             href={`/companies/${companyId}`}

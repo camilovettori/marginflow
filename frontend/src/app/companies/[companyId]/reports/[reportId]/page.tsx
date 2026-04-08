@@ -36,6 +36,7 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react"
+import WorkspacePageHeader from "@/components/workspace-page-header"
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-IE", {
@@ -786,8 +787,56 @@ export default function WeeklyReportDetailPage() {
 
   return (
     <div className="space-y-8">
+      <WorkspacePageHeader
+        label="Weekly report detail"
+        title="Weekly Intelligence Report"
+        subtitle="Review, edit, and distribute the company’s weekly performance pack."
+        companyName={report.company_name || "Selected Company"}
+        companyMeta={`${buildWeekLabel(report)} · ${formatDate(report.week_start)} → ${formatDate(report.week_end)}`}
+        companyBadge={
+          <span
+            className={cn(
+              "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium",
+              healthBadgeClass
+            )}
+          >
+            {healthLabel}
+          </span>
+        }
+        actions={
+          <>
+            <button
+              onClick={handleGeneratePdf}
+              disabled={busyAction !== null || saving}
+              className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download size={16} />
+              {busyAction === "pdf" ? "Generating..." : "Generate PDF"}
+            </button>
+
+            <button
+              onClick={handleSendEmail}
+              disabled={busyAction !== null || saving}
+              className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Mail size={16} />
+              {busyAction === "email" ? "Sending..." : "Send by Email"}
+            </button>
+
+            <button
+              onClick={handleSave}
+              disabled={saving || busyAction !== null}
+              className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Save size={16} />
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </>
+        }
+      />
+
       <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex flex-col gap-4">
+        <div className="hidden mb-6 flex flex-col gap-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-4">
               <Link

@@ -24,6 +24,7 @@ import {
   Settings,
   Trash2,
 } from "lucide-react"
+import WorkspacePageHeader from "@/components/workspace-page-header"
 
 function slugify(value: string) {
   return value
@@ -278,7 +279,42 @@ export default function CompanySettingsPage() {
 
   return (
     <div className="space-y-8">
-          <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <WorkspacePageHeader
+        label="Workspace settings"
+        title="Company Settings"
+        subtitle="Manage company details, sales-source configuration, team access, and destructive actions from one place."
+        companyName={company?.name ?? "Workspace"}
+        companyMeta={
+          company
+            ? `${company.sales_source === "zoho" ? "Zoho connected" : "Manual source"} · ${company.email || "No public contact email"}`
+            : "Loading company configuration..."
+        }
+        companyBadge={
+          <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            {company?.slug || "settings"}
+          </span>
+        }
+        actions={
+          <>
+            <button className="rounded-2xl border border-zinc-200 bg-white p-3 text-zinc-500 shadow-sm">
+              <Search size={18} />
+            </button>
+            <button className="rounded-2xl border border-zinc-200 bg-white p-3 text-zinc-500 shadow-sm">
+              <Bell size={18} />
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || loading}
+              className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Save size={16} />
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </>
+        }
+      />
+
+      <div className="hidden mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="mb-4">
                 <Link

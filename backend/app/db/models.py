@@ -9,3 +9,5 @@ from app.models.weekly_metrics import WeeklyMetrics  # noqa: F401
 from app.models.tenant_user import TenantUser  # noqa: F401
 from app.models.refresh_token import RefreshToken  # noqa: F401
 from app.models.zoho_connection import ZohoConnection  # noqa: F401
+from app.models.zoho_sales_invoice import ZohoSalesInvoice  # noqa: F401
+from app.models.zoho_sales_invoice_item import ZohoSalesInvoiceItem  # noqa: F401

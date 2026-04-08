@@ -7,10 +7,10 @@ import {
   getCompanies,
   getDashboard,
   getMe,
-  syncZohoSales,
   type Company,
   type DashboardData,
 } from "@/services/api"
+import WorkspacePageHeader from "@/components/workspace-page-header"
 import {
   Area,
   AreaChart,
@@ -27,14 +27,13 @@ import {
   CalendarDays,
   FileText,
   Lightbulb,
-  Plus,
-  RefreshCw,
-  Settings,
   Target,
 } from "lucide-react"
 
 const IDEAL_WAGES_PCT = 0.35
 const IDEAL_NET_MARGIN_PCT = 0.1
+
+type RangeOption = "4w" | "3m" | "6m" | "12m"
 
 type CompanyMetricOption =
   | "sales"
@@ -85,17 +84,17 @@ function MetricCard({
 }) {
   const toneMap = {
     default: "from-white to-zinc-50 border-zinc-200",
-    yellow: "from-amber-50 to-yellow-100/80 border-amber-200",
-    red: "from-rose-50 to-orange-50 border-rose-200",
-    green: "from-emerald-50 to-lime-50 border-emerald-200",
-    blue: "from-sky-50 to-blue-50 border-sky-200",
+    yellow: "from-amber-50/70 to-yellow-50/50 border-amber-200/70",
+    red: "from-rose-50/70 to-orange-50/50 border-rose-200/70",
+    green: "from-emerald-50/70 to-lime-50/50 border-emerald-200/70",
+    blue: "from-sky-50/70 to-blue-50/50 border-sky-200/70",
   }
 
   return (
-    <div className={`rounded-3xl border bg-gradient-to-br p-6 shadow-sm ${toneMap[tone]}`}>
-      <p className="text-sm font-medium text-zinc-500">{title}</p>
-      <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">{value}</p>
-      {subtitle && <p className="mt-3 text-sm text-zinc-500">{subtitle}</p>}
+    <div className={`rounded-2xl border bg-gradient-to-br p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5 ${toneMap[tone]}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{title}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 md:text-[2.4rem]">{value}</p>
+      {subtitle && <p className="mt-3 text-sm leading-6 text-zinc-500">{subtitle}</p>}
       {note && <p className="mt-2 text-sm font-medium text-zinc-700">{note}</p>}
     </div>
   )
@@ -113,11 +112,11 @@ function SectionCard({
   action?: React.ReactNode
 }) {
   return (
-    <div className="rounded-[28px] border border-zinc-200 bg-white/95 shadow-sm">
-      <div className="flex items-center justify-between gap-4 border-b border-zinc-100 px-7 py-6">
+    <div className="rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+      <div className="flex items-center justify-between gap-4 border-b border-zinc-100 px-5 py-5 md:px-6">
         <div>
-          <h2 className="text-[1.9rem] font-semibold tracking-tight text-zinc-950">{title}</h2>
-          {subtitle && <p className="mt-1.5 text-sm text-zinc-500">{subtitle}</p>}
+          <h2 className="text-2xl font-semibold tracking-tight text-zinc-950 md:text-[1.9rem]">{title}</h2>
+          {subtitle && <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>}
         </div>
         {action}
       </div>
@@ -143,6 +142,13 @@ function getMetricLabel(metric: CompanyMetricOption) {
   }
 }
 
+const rangeOptions: Array<{ value: RangeOption; label: string; weeksToShow: number }> = [
+  { value: "4w", label: "4 Weeks", weeksToShow: 4 },
+  { value: "3m", label: "3 Months", weeksToShow: 12 },
+  { value: "6m", label: "6 Months", weeksToShow: 24 },
+  { value: "12m", label: "12 Months", weeksToShow: 52 },
+]
+
 export default function CompanyPage() {
   const params = useParams()
   const router = useRouter()
@@ -151,13 +157,11 @@ export default function CompanyPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [company, setCompany] = useState<Company | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
+  const [dashboardHistory, setDashboardHistory] = useState<DashboardData | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<CompanyMetricOption>("sales")
+  const [selectedRange, setSelectedRange] = useState<RangeOption>("4w")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const [syncingZoho, setSyncingZoho] = useState(false)
-  const [zohoSyncMessage, setZohoSyncMessage] = useState<string | null>(null)
-  const [zohoSyncError, setZohoSyncError] = useState<string | null>(null)
 
   async function loadCompanyPageData() {
     try {
@@ -183,8 +187,13 @@ export default function CompanyPage() {
 
       setCompany(companyData)
 
-      const dashboardData = await getDashboard(companyId)
+      const [dashboardData, dashboardHistoryData] = await Promise.all([
+        getDashboard(companyId, 4),
+        getDashboard(companyId, 52),
+      ])
+
       setDashboard(dashboardData)
+      setDashboardHistory(dashboardHistoryData)
     } catch (err) {
       console.error("Company page error:", err)
 
@@ -242,9 +251,15 @@ export default function CompanyPage() {
   }, [dashboard])
 
   const chartData = useMemo(() => {
-    if (!dashboard) return []
+    const sourceDashboard = dashboardHistory ?? dashboard
+    if (!sourceDashboard) return []
 
-    return dashboard.last_weeks.map((week) => {
+    const weeksToShow =
+      rangeOptions.find((option) => option.value === selectedRange)?.weeksToShow ?? 4
+
+    const visibleWeeks = sourceDashboard.last_weeks.slice(-weeksToShow)
+
+    return visibleWeeks.map((week) => {
       let value = 0
 
       switch (selectedMetric) {
@@ -272,7 +287,10 @@ export default function CompanyPage() {
         value,
       }
     })
-  }, [dashboard, selectedMetric])
+  }, [dashboard, dashboardHistory, selectedMetric, selectedRange])
+
+  const selectedRangeLabel =
+    rangeOptions.find((option) => option.value === selectedRange)?.label ?? "4 Weeks"
 
   const previousWeekTrend = useMemo(() => {
     if (!dashboard || dashboard.last_weeks.length < 2) return null
@@ -337,86 +355,28 @@ export default function CompanyPage() {
     return "This company is relatively stable. Focus next on improving net profit conversion week by week."
   }, [dashboard, wagesPct, foodCostPct, cashFlow])
 
-  async function handleZohoSync() {
-  try {
-    setZohoSyncError(null)
-    setZohoSyncMessage(null)
-    setSyncingZoho(true)
-
-    const result = await syncZohoSales(companyId, { preset: "last_12_weeks" })
-
-    setZohoSyncMessage(
-      `Zoho sync complete. ${result.created_reports} weekly reports created, ${result.skipped_existing_reports} existing weeks skipped.`
-    )
-
-    await loadCompanyPageData()
-  } catch (err) {
-    console.error("Zoho sync error:", err)
-    setZohoSyncError(
-      err instanceof Error ? err.message : "Failed to sync Zoho sales."
-    )
-  } finally {
-    setSyncingZoho(false)
-  }
-}
-
   return (
     <div className="space-y-8">
-          <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-5xl font-semibold tracking-tight text-zinc-950">
-                {company?.name ?? "Company"}
-              </h2>
-              <p className="mt-3 text-base text-zinc-500">
-                Weekly financial performance for this company.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 self-start">
-              {company?.sales_source === "zoho" && (
-                <button
-                  onClick={handleZohoSync}
-                  disabled={syncingZoho}
-                  className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <RefreshCw size={16} className={syncingZoho ? "animate-spin" : ""} />
-                  {syncingZoho ? "Syncing Zoho..." : "Sync Zoho Sales"}
-                </button>
-              )}
-
-              <Link
-                href={`/companies/${companyId}/reports/new`}
-                className="flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
-              >
-                <Plus size={16} />
-                Add Weekly Report
-              </Link>
-
-              <Link
-                href={`/companies/${companyId}/settings`}
-                className="flex items-center justify-center rounded-2xl border border-zinc-200 bg-white p-3 text-zinc-600 shadow-sm transition hover:bg-zinc-50 hover:text-zinc-900"
-                title="Company Settings"
-              >
-                <Settings size={18} />
-              </Link>
-            </div>
-          </div>
+      <WorkspacePageHeader
+        label="Company workspace"
+        title="Operational Overview"
+        subtitle={`Weekly financial performance for ${company?.name ?? "this company"}.`}
+        companyName={company?.name ?? "Company"}
+        companyMeta={
+          dashboard
+            ? `${fmtMoney(dashboard.total_sales_ex_vat)} revenue in the latest 4-week window`
+            : "Latest operating snapshot and weekly performance context."
+        }
+        companyBadge={
+          <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            {company?.sales_source === "zoho" ? "Zoho connected" : "Manual source"}
+          </span>
+        }
+      />
 
           {error && (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
               {error}
-            </div>
-          )}
-
-          {zohoSyncError && (
-            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
-              {zohoSyncError}
-            </div>
-          )}
-
-          {zohoSyncMessage && (
-            <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
-              {zohoSyncMessage}
             </div>
           )}
 
@@ -515,7 +475,17 @@ export default function CompanyPage() {
                   action={
                     <div className="flex items-center gap-3">
                       <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600">
-                        Last {dashboard.weeks} Weeks
+                        <select
+                          value={selectedRange}
+                          onChange={(e) => setSelectedRange(e.target.value as RangeOption)}
+                          className="bg-transparent text-sm text-zinc-700 outline-none"
+                        >
+                          {rangeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <select
                         value={selectedMetric}
@@ -573,6 +543,9 @@ export default function CompanyPage() {
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
+                    <p className="mt-4 text-sm text-zinc-500">
+                      Showing the most recent {selectedRangeLabel.toLowerCase()} of weekly data.
+                    </p>
                   </div>
                 </SectionCard>
               </div>

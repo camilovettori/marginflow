@@ -76,9 +76,27 @@ export type ZohoSyncResponse = {
   date_from?: string | null
   date_to?: string | null
   weeks_detected: number
+  invoices_synced?: number
+  line_items_synced?: number
   created_reports: number
   updated_reports?: number
   skipped_existing_reports: number
+}
+
+export type UnifyZohoSyncResponse = {
+  success: boolean
+  company_id: string
+  products_loaded: number
+  orders_fetched: number
+  buyer_groups: number
+  invoices_created: number
+  duplicates_skipped: number
+  contacts_created: number
+  contacts_reused: number
+  items_created: number
+  items_reused: number
+  line_items_created: number
+  logs: string[]
 }
 
 export type ZohoWeeklyPrefillResponse = {
@@ -93,6 +111,81 @@ export type ZohoWeeklyPrefillResponse = {
   notes?: string | null
 }
 
+export type SalesConnectionState = {
+  connected: boolean
+  zoho_org_id?: string | null
+  connected_email?: string | null
+  last_sync_at?: string | null
+  sales_source?: string | null
+}
+
+export type SalesTrendPoint = {
+  period: string
+  sales_inc_vat: number
+  sales_ex_vat: number
+  invoice_count: number
+}
+
+export type SalesCustomerItemBreakdown = {
+  item_id?: string | null
+  item_name: string
+  quantity: number
+  revenue_ex_vat: number
+  revenue_inc_vat: number
+  invoice_count: number
+}
+
+export type SalesCustomerRow = {
+  rank: number
+  customer_id?: string | null
+  customer_name: string
+  total_spend_inc_vat: number
+  total_spend_ex_vat: number
+  invoice_count: number
+  average_order_value: number
+  last_purchase_date?: string | null
+  items: SalesCustomerItemBreakdown[]
+}
+
+export type SalesItemRow = {
+  rank: number
+  item_id?: string | null
+  item_name: string
+  quantity_sold: number
+  revenue_ex_vat: number
+  revenue_inc_vat: number
+  invoice_count: number
+}
+
+export type SalesInvoiceRow = {
+  invoice_date: string
+  invoice_number?: string | null
+  customer_name?: string | null
+  total_ex_vat: number
+  total_inc_vat: number
+  status?: string | null
+}
+
+export type SalesAnalyticsResponse = {
+  company_id: string
+  company_name: string
+  range_key: string
+  range_label: string
+  start_date: string
+  end_date: string
+  connection: SalesConnectionState
+  total_sales_inc_vat: number
+  total_sales_ex_vat: number
+  invoice_count: number
+  active_customers: number
+  average_order_value: number
+  top_customers: SalesCustomerRow[]
+  customer_breakdown?: SalesCustomerRow | null
+  top_items: SalesItemRow[]
+  invoice_trend: SalesTrendPoint[]
+  recent_invoices: SalesInvoiceRow[]
+}
+
 export function getZohoConnectUrl(companyId: string): string {
   const tenantId =
     typeof window !== "undefined" ? localStorage.getItem("mf_tenant_id") : null
@@ -102,6 +195,20 @@ export function getZohoConnectUrl(companyId: string): string {
   }
 
   return `${API_URL}/api/integrations/zoho/connect/${companyId}?tenant_id=${tenantId}`
+}
+
+export async function disconnectZohoConnection(companyId: string): Promise<{ success: boolean; company_id: string; connected: boolean }> {
+  const tenantId = getActiveTenantId()
+  if (!tenantId) {
+    throw new Error("No active tenant selected.")
+  }
+
+  return authFetch<{ success: boolean; company_id: string; connected: boolean }>(
+    `/api/integrations/zoho/disconnect/${companyId}?tenant_id=${tenantId}`,
+    {
+      method: "DELETE",
+    }
+  )
 }
 
 export type DashboardWeek = {
@@ -478,7 +585,7 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
       })
     } catch {
       throw new Error(
-        "Unable to reach the server. Check if the backend is running or if CORS is configured correctly."
+        `Unable to reach the server while requesting ${path}. Check if the backend is running or if CORS is configured correctly.`
       )
     }
   }
@@ -579,14 +686,28 @@ export function logout() {
   window.location.href = "/login"
 }
 
-export async function getDashboard(companyId: string): Promise<DashboardData> {
+export async function getDashboard(
+  companyId: string,
+  weeks: number = 4
+): Promise<DashboardData> {
   return authFetch<DashboardData>(
-    `/api/dashboard/?company_id=${companyId}&weeks=4`
+    `/api/dashboard/?company_id=${companyId}&weeks=${weeks}`
   )
 }
 
 export async function getPortfolioDashboard(): Promise<PortfolioData> {
   return authFetch<PortfolioData>(`/api/dashboard/portfolio?weeks=4`)
+}
+
+export async function getSalesAnalytics(
+  companyId: string,
+  range: "week" | "4w" | "3m" | "6m" | "12m" = "4w",
+  customerId?: string | null
+): Promise<SalesAnalyticsResponse> {
+  const params = new URLSearchParams()
+  params.set("range", range)
+  if (customerId) params.set("customer_id", customerId)
+  return authFetch<SalesAnalyticsResponse>(`/api/sales/${companyId}?${params.toString()}`)
 }
 
 export async function getCompanies(): Promise<Company[]> {
@@ -739,6 +860,14 @@ export async function syncZohoSales(
     : `/api/integrations/zoho/sync/${companyId}`
 
   return authFetch<ZohoSyncResponse>(url, {
+    method: "POST",
+  })
+}
+
+export async function syncUnifyZohoSales(
+  companyId: string
+): Promise<UnifyZohoSyncResponse> {
+  return authFetch<UnifyZohoSyncResponse>(`/api/integrations/unify/sync/${companyId}`, {
     method: "POST",
   })
 }

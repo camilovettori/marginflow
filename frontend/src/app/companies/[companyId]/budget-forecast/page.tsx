@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, CalendarDays, Save, Target, TrendingUp, Wallet } from "lucide-react"
 import { getCompanyById, getDashboard, type Company, type DashboardData } from "@/services/api"
+import WorkspacePageHeader from "@/components/workspace-page-header"
 
 type MonthlyBudget = {
   revenue: number
@@ -302,7 +303,35 @@ export default function BudgetForecastPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <WorkspacePageHeader
+        label="Forecast planning"
+        title="Budget / Forecast"
+        subtitle={`Set annual planning assumptions and monthly targets for ${company?.name ?? "this company"}.`}
+        companyName={company?.name ?? "Workspace"}
+        companyMeta={`Targets are company-scoped and year-scoped for ${year}.`}
+        companyBadge={
+          <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Planning year
+          </span>
+        }
+        actions={
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <CalendarDays size={18} className="text-zinc-500" />
+                <input
+                  type="number"
+                  value={year}
+                  onChange={(e) => setYear(Number(e.target.value) || currentYear)}
+                  className="w-28 border-none bg-transparent p-0 text-lg font-semibold text-zinc-950 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        }
+      />
+
+      <div className="hidden flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <Link
             href={`/companies/${companyId}`}

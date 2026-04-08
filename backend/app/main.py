@@ -15,6 +15,8 @@ from app.routes.auth import router as auth_router
 from app.api.tenant_members import router as tenant_members_router
 from app.routes.zoho import router as zoho_router
 from app.routes.zoho_sync import router as zoho_sync_router
+from app.routes.unify_sync import router as unify_sync_router
+from app.routes.sales import router as sales_router
 from app.routes.financial_categories import router as financial_categories_router
 from app.routes.weekly_report_items import router as weekly_report_items_router
 
@@ -46,6 +48,8 @@ app.include_router(tenant_members_router)
 
 app.include_router(weekly_report_router)
 app.include_router(dashboard_router)
+app.include_router(sales_router)
+app.include_router(unify_sync_router)
 app.include_router(financial_categories_router)
 app.include_router(weekly_report_items_router)
 
