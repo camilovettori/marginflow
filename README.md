@@ -36,7 +36,7 @@ The goal is to create a simple and effective system to help business owners trac
 
 ---
 
-## 📌 Project Goals
+## 📌 Project Goalsx
 
 - Build a scalable SaaS solution  
 - Design user-friendly financial dashboards  
