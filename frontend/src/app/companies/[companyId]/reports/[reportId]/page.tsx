@@ -6,11 +6,9 @@ import { useParams } from "next/navigation"
 import {
   createWeeklyReportItem,
   deleteWeeklyReportItem,
-  generateWeeklyReportPdf,
   getFinancialCategories,
   getWeeklyReportBreakdown,
   getWeeklyReportById,
-  sendWeeklyReportEmail,
   updateWeeklyReport,
   type FinancialCategory,
   type WeeklyReportBreakdownResponse,
@@ -35,6 +33,7 @@ import {
   Trash2,
   TrendingUp,
   Wallet,
+  X,
 } from "lucide-react"
 import WorkspacePageHeader from "@/components/workspace-page-header"
 
@@ -130,6 +129,37 @@ function buildWeekLabel(report: WeeklyReportDetail | null) {
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ")
+}
+
+function TooltipIcon({ definition }: { definition: string }) {
+  return (
+    <div className="group relative inline-flex items-center">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-3.5 w-3.5 cursor-help text-zinc-400 opacity-40 transition-opacity duration-150 group-hover:opacity-80"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+      <div
+        className={cn(
+          "pointer-events-none absolute bottom-full left-1/2 z-50 mb-2.5 w-52 -translate-x-1/2",
+          "rounded-2xl bg-zinc-900 px-3 py-2.5 text-xs leading-5 text-zinc-100 shadow-xl",
+          "opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+        )}
+      >
+        {definition}
+        <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[5px] border-x-transparent border-t-zinc-900" />
+      </div>
+    </div>
+  )
 }
 
 function SectionCard({
@@ -287,15 +317,22 @@ function KPI({
   value,
   caption,
   tone = "default",
+  tooltip,
 }: {
   icon: React.ReactNode
   label: string
   value: string
   caption: string
   tone?: "default" | "success" | "warning"
+  tooltip?: string
 }) {
   return (
-    <div className="rounded-[28px] border border-black/5 bg-white/95 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.04)]">
+    <div className="relative rounded-[28px] border border-black/5 bg-white/95 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.04)]">
+      {tooltip ? (
+        <div className="absolute right-4 top-4">
+          <TooltipIcon definition={tooltip} />
+        </div>
+      ) : null}
       <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
         {icon}
       </div>
@@ -319,14 +356,19 @@ function ExecutiveRow({
   label,
   value,
   valueClassName = "",
+  tooltip,
 }: {
   label: string
   value: string
   valueClassName?: string
+  tooltip?: string
 }) {
   return (
     <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3">
-      <span className="text-sm text-zinc-500">{label}</span>
+      <span className="flex items-center gap-1.5 text-sm text-zinc-500">
+        {label}
+        {tooltip ? <TooltipIcon definition={tooltip} /> : null}
+      </span>
       <span className={cn("text-sm font-semibold text-zinc-950", valueClassName)}>{value}</span>
     </div>
   )
@@ -335,9 +377,11 @@ function ExecutiveRow({
 function Signal({
   children,
   tone = "neutral",
+  tooltip,
 }: {
   children: React.ReactNode
   tone?: "neutral" | "good" | "warn"
+  tooltip?: string
 }) {
   const styles =
     tone === "good"
@@ -346,7 +390,16 @@ function Signal({
         ? "border-amber-200 bg-amber-50 text-amber-900"
         : "border-zinc-200 bg-zinc-50 text-zinc-700"
 
-  return <div className={cn("rounded-2xl border px-4 py-3 text-sm leading-6", styles)}>{children}</div>
+  return (
+    <div className={cn("relative rounded-2xl border px-4 py-3 pr-8 text-sm leading-6", styles)}>
+      {tooltip ? (
+        <div className="absolute right-3 top-3">
+          <TooltipIcon definition={tooltip} />
+        </div>
+      ) : null}
+      {children}
+    </div>
+  )
 }
 
 function getTypePillClass(type?: string | null) {
@@ -373,6 +426,9 @@ export default function WeeklyReportDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [busyAction, setBusyAction] = useState<"pdf" | "email" | null>(null)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [emailTo, setEmailTo] = useState("")
+  const [sendingEmail, setSendingEmail] = useState(false)
   const [addingItem, setAddingItem] = useState(false)
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null)
 
@@ -541,44 +597,60 @@ export default function WeeklyReportDetailPage() {
   }, [breakdown])
 
   const goodSignals = useMemo(() => {
-    const signals: string[] = []
+    const signals: Array<{ text: string; tooltip: string }> = []
 
     if (netMarginPct >= 0.18) {
-      signals.push(
-        "Strong week. Profitability is healthy and the business is operating inside a good efficiency range."
-      )
+      signals.push({
+        text: "Strong week. Profitability is healthy and the business is operating inside a good efficiency range.",
+        tooltip:
+          "Net Margin ≥18%: Net Profit ÷ Revenue × 100. The business is above the healthy threshold for weekly operations.",
+      })
     }
 
     if (grossMarginPct >= 0.65) {
-      signals.push("Gross margin is holding well. Core product margin looks solid this week.")
+      signals.push({
+        text: "Gross margin is holding well. Core product margin looks solid this week.",
+        tooltip:
+          "Gross Margin ≥65%: Gross Profit ÷ Revenue × 100. A strong product margin before labour and overhead costs.",
+      })
     }
 
     if (breakdownLineCount > 0) {
-      signals.push(
-        "Categorized P&L structure is active. Breakdown lines are helping standardize the weekly report."
-      )
+      signals.push({
+        text: "Categorized P&L structure is active. Breakdown lines are helping standardize the weekly report.",
+        tooltip:
+          "P&L Breakdown: Categorized financial lines that provide a structured, consistent view of weekly costs and revenue.",
+      })
     }
 
     return signals
   }, [netMarginPct, grossMarginPct, breakdownLineCount])
 
   const warningSignals = useMemo(() => {
-    const signals: string[] = []
+    const signals: Array<{ text: string; tooltip: string }> = []
 
     if (netMarginPct < 0.1) {
-      signals.push(
-        "Margin is under target. Focus on cost control, pricing discipline and operational efficiency."
-      )
+      signals.push({
+        text: "Margin is under target. Focus on cost control, pricing discipline and operational efficiency.",
+        tooltip:
+          "Net Margin <10%: Net Profit ÷ Revenue × 100. Currently below the 10% minimum healthy threshold — prioritize cost reduction.",
+      })
     }
 
     if (labourPct > 0.35) {
-      signals.push(
-        "Labour pressure is high for the current revenue level. Review rota efficiency and staffing mix."
-      )
+      signals.push({
+        text: "Labour pressure is high for the current revenue level. Review rota efficiency and staffing mix.",
+        tooltip:
+          "Labour % >35%: Total wages and holiday pay as a % of Revenue ex VAT. Sustained pressure above 35% erodes profitability.",
+      })
     }
 
     if (grossMarginPct < 0.6) {
-      signals.push("Gross margin is softer than expected. Review food cost, supplier pricing and waste.")
+      signals.push({
+        text: "Gross margin is softer than expected. Review food cost, supplier pricing and waste.",
+        tooltip:
+          "Gross Margin <60%: Gross Profit ÷ Revenue × 100. Below 60% signals food cost pressure — review supplier pricing and waste.",
+      })
     }
 
     return signals
@@ -662,6 +734,344 @@ export default function WeeklyReportDetailPage() {
     }
   }
 
+  async function generateAndDownloadPdf() {
+    const { jsPDF } = await import("jspdf")
+
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const margin = 18
+    const contentW = pageW - margin * 2
+    let y = 0
+
+    const c = {
+      dark: [9, 9, 11] as [number, number, number],
+      zinc600: [82, 82, 91] as [number, number, number],
+      zinc500: [113, 113, 122] as [number, number, number],
+      zinc300: [212, 212, 216] as [number, number, number],
+      zinc200: [228, 228, 231] as [number, number, number],
+      zinc100: [244, 244, 245] as [number, number, number],
+      zinc50: [250, 250, 250] as [number, number, number],
+      white: [255, 255, 255] as [number, number, number],
+      emerald: [16, 185, 129] as [number, number, number],
+      emeraldBg: [209, 250, 229] as [number, number, number],
+      emeraldText: [6, 95, 70] as [number, number, number],
+      amber: [245, 158, 11] as [number, number, number],
+      amberBg: [254, 243, 199] as [number, number, number],
+      amberText: [120, 53, 15] as [number, number, number],
+      rose: [244, 63, 94] as [number, number, number],
+    }
+
+    function needsNewPage(space: number) {
+      if (y + space > pageH - margin) {
+        doc.addPage()
+        y = margin + 8
+      }
+    }
+
+    // ── HEADER ────────────────────────────────────────────────────
+    doc.setFillColor(...c.dark)
+    doc.rect(0, 0, pageW, 54, "F")
+
+    // Logo pill
+    doc.setFillColor(...c.white)
+    doc.roundedRect(margin, 11, 34, 11, 2, 2, "F")
+    doc.setFontSize(8)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...c.dark)
+    doc.text("MarginFlow", margin + 3.5, 18.5)
+
+    // Title
+    doc.setFontSize(15)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...c.white)
+    doc.text("Weekly Intelligence Report", margin + 40, 18.5)
+
+    // Company
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
+    doc.setTextColor(161, 161, 170)
+    doc.text(report?.company_name || "Company", margin, 32)
+
+    // Week label
+    doc.setFontSize(9)
+    doc.text(buildWeekLabel(report), margin, 40)
+
+    // Generated date (right-aligned)
+    const genDate = `Generated ${new Date().toLocaleDateString("en-IE", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })}`
+    doc.setFontSize(8)
+    const genW = doc.getTextWidth(genDate)
+    doc.text(genDate, pageW - margin - genW, 40)
+
+    // Health badge
+    const badgeBg =
+      netMarginPct >= 0.18 && labourPct <= 0.32 ? c.emerald : netMarginPct >= 0.1 ? c.amber : c.rose
+    doc.setFillColor(...badgeBg)
+    doc.roundedRect(pageW - margin - 38, 27, 38, 9, 2, 2, "F")
+    doc.setFontSize(7)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...c.white)
+    const bw = doc.getTextWidth(healthLabel)
+    doc.text(healthLabel, pageW - margin - 19 - bw / 2, 33.2)
+
+    y = 65
+
+    // ── KPI CARDS ─────────────────────────────────────────────────
+    const kpiItems = [
+      { label: "Sales ex VAT", value: formatMoney(salesExVat), sub: "Core revenue base", color: c.dark },
+      {
+        label: "Net Profit",
+        value: formatMoney(netProfit),
+        sub: "Bottom-line result",
+        color: netProfit > 0 ? c.emerald : c.rose,
+      },
+      {
+        label: "Net Margin",
+        value: formatPct(netMarginPct),
+        sub: "Profitability quality",
+        color: netMarginPct >= 0.18 ? c.emerald : netMarginPct >= 0.1 ? c.amber : c.rose,
+      },
+      {
+        label: "Labour %",
+        value: formatPct(labourPct),
+        sub: "Pressure vs revenue",
+        color: labourPct > 0.35 ? c.rose : labourPct > 0.25 ? c.amber : c.dark,
+      },
+    ]
+
+    const kpiW = (contentW - 9) / 4
+    kpiItems.forEach((kpi, i) => {
+      const kx = margin + i * (kpiW + 3)
+      doc.setFillColor(...c.white)
+      doc.setDrawColor(...c.zinc200)
+      doc.roundedRect(kx, y, kpiW, 30, 3, 3, "FD")
+      doc.setFontSize(7.5)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(...c.zinc500)
+      doc.text(kpi.label, kx + 4, y + 9)
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(...kpi.color)
+      doc.text(kpi.value, kx + 4, y + 19)
+      doc.setFontSize(7)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(...c.zinc500)
+      doc.text(kpi.sub, kx + 4, y + 26)
+    })
+
+    y += 40
+
+    // ── MARGIN SNAPSHOT ───────────────────────────────────────────
+    doc.setFontSize(11)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...c.dark)
+    doc.text("Margin Snapshot", margin, y)
+    y += 8
+
+    const snapshotRows: Array<{ label: string; value: string; color?: [number, number, number] }> = [
+      { label: "Sales ex VAT", value: formatMoney(salesExVat) },
+      { label: "Gross Profit", value: formatMoney(grossProfit), color: grossProfit > 0 ? c.emerald : c.rose },
+      { label: "Gross Margin %", value: formatPct(grossMarginPct) },
+      { label: "Labour Total", value: formatMoney(labourTotal) },
+      { label: "Labour %", value: formatPct(labourPct), color: labourPct > 0.25 ? c.amber : undefined },
+      { label: "Net Profit", value: formatMoney(netProfit), color: netProfit > 0 ? c.emerald : c.rose },
+      { label: "Net Margin %", value: formatPct(netMarginPct), color: netMarginPct >= 0.18 ? c.emerald : undefined },
+      { label: "Food Cost", value: formatMoney(computedFoodCost) },
+      { label: "Fixed Costs", value: formatMoney(Number(form.fixed_costs)) },
+      { label: "Variable Costs", value: formatMoney(Number(form.variable_costs)) },
+    ]
+
+    snapshotRows.forEach((row, i) => {
+      needsNewPage(9)
+      if (i % 2 === 0) {
+        doc.setFillColor(...c.zinc50)
+        doc.rect(margin, y, contentW, 8.5, "F")
+      }
+      doc.setFontSize(8.5)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(...c.zinc500)
+      doc.text(row.label, margin + 4, y + 5.8)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(...(row.color ?? c.dark))
+      const vw = doc.getTextWidth(row.value)
+      doc.text(row.value, margin + contentW - 4 - vw, y + 5.8)
+      y += 8.5
+    })
+
+    doc.setDrawColor(...c.zinc200)
+    doc.line(margin, y, margin + contentW, y)
+    y += 10
+
+    // ── KEY SIGNALS ───────────────────────────────────────────────
+    if (goodSignals.length > 0 || warningSignals.length > 0) {
+      needsNewPage(20)
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(...c.dark)
+      doc.text("Key Signals", margin, y)
+      y += 8
+
+      for (const signal of goodSignals) {
+        const lines = doc.splitTextToSize(signal.text, contentW - 10)
+        const boxH = lines.length * 5.5 + 8
+        needsNewPage(boxH + 4)
+        doc.setFillColor(...c.emeraldBg)
+        doc.setDrawColor(167, 243, 208)
+        doc.roundedRect(margin, y, contentW, boxH, 2, 2, "FD")
+        doc.setFontSize(8.5)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(...c.emeraldText)
+        doc.text(lines, margin + 5, y + 7)
+        y += boxH + 4
+      }
+
+      for (const signal of warningSignals) {
+        const lines = doc.splitTextToSize(signal.text, contentW - 10)
+        const boxH = lines.length * 5.5 + 8
+        needsNewPage(boxH + 4)
+        doc.setFillColor(...c.amberBg)
+        doc.setDrawColor(253, 230, 138)
+        doc.roundedRect(margin, y, contentW, boxH, 2, 2, "FD")
+        doc.setFontSize(8.5)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(...c.amberText)
+        doc.text(lines, margin + 5, y + 7)
+        y += boxH + 4
+      }
+
+      y += 4
+    }
+
+    // ── NOTES ─────────────────────────────────────────────────────
+    if (form.notes) {
+      needsNewPage(20)
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(...c.dark)
+      doc.text("Notes", margin, y)
+      y += 8
+
+      const noteLines = doc.splitTextToSize(form.notes, contentW - 10)
+      const noteH = noteLines.length * 5.5 + 10
+      needsNewPage(noteH)
+      doc.setFillColor(...c.zinc50)
+      doc.setDrawColor(...c.zinc200)
+      doc.roundedRect(margin, y, contentW, noteH, 2, 2, "FD")
+      doc.setFontSize(8.5)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(...c.zinc600)
+      doc.text(noteLines, margin + 5, y + 8)
+      y += noteH + 10
+    }
+
+    // ── GLOSSARY PAGE ─────────────────────────────────────────────
+    doc.addPage()
+    doc.setFillColor(...c.dark)
+    doc.rect(0, 0, pageW, 28, "F")
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...c.white)
+    doc.text("Metrics Glossary", margin, 18)
+
+    y = 38
+
+    const glossaryItems = [
+      {
+        term: "Revenue / Sales ex VAT",
+        def: "Total gross revenue generated in the period, excluding VAT. The starting point for all profitability calculations.",
+      },
+      {
+        term: "Gross Profit",
+        def: "Revenue minus Cost of Goods Sold (food cost and direct product costs). Measures how efficiently sales convert into profit before labour and overhead.",
+      },
+      {
+        term: "Gross Margin %",
+        def: "Gross Profit ÷ Revenue × 100. A gross margin above 65% is considered healthy for a café or bakery operation.",
+      },
+      {
+        term: "Net Profit",
+        def: "The bottom-line result after all costs: food, labour, fixed costs, variable costs, loans, and VAT due.",
+      },
+      {
+        term: "Net Margin %",
+        def: "Net Profit ÷ Revenue × 100. Target 18%+ for a healthy and well-managed operation.",
+      },
+      {
+        term: "Labour %",
+        def: "Total labour cost (wages + holiday pay) as a percentage of Revenue ex VAT. Keep under 32% for a balanced cost structure.",
+      },
+      {
+        term: "Food Cost",
+        def: "Direct cost of ingredients and consumables used to produce the goods sold. Typically expressed as a percentage of Revenue ex VAT.",
+      },
+      {
+        term: "Fixed Costs",
+        def: "Recurring costs that remain constant regardless of revenue levels — rent, insurance, utilities.",
+      },
+      {
+        term: "Variable Costs",
+        def: "Costs that fluctuate with operational activity — packaging, cleaning supplies, and other day-to-day operational expenses.",
+      },
+      {
+        term: "AOV (Average Order Value)",
+        def: "Average revenue per transaction: Total Revenue ÷ Number of Transactions. A rising AOV signals effective upselling or pricing strength.",
+      },
+      {
+        term: "VAT Due",
+        def: "Value Added Tax payable to the revenue authority for the period. Deducted in the net profit calculation as it represents a cash liability.",
+      },
+      {
+        term: "Profit",
+        def: "Interchangeable with Net Profit in this platform. Represents the true residual value after all business costs have been deducted from revenue.",
+      },
+    ]
+
+    glossaryItems.forEach((item, i) => {
+      const defLines = doc.splitTextToSize(item.def, contentW - 8)
+      const rowH = defLines.length * 5 + 17
+      needsNewPage(rowH + 3)
+
+      if (i % 2 === 0) {
+        doc.setFillColor(...c.zinc50)
+        doc.rect(margin, y, contentW, rowH, "F")
+      }
+
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(...c.dark)
+      doc.text(item.term, margin + 4, y + 9)
+
+      doc.setFontSize(8)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(...c.zinc500)
+      doc.text(defLines, margin + 4, y + 15)
+
+      y += rowH + 3
+    })
+
+    // ── PAGE FOOTERS ──────────────────────────────────────────────
+    const totalPages = doc.getNumberOfPages()
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p)
+      doc.setFontSize(7)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(...c.zinc500)
+      doc.setDrawColor(...c.zinc200)
+      doc.line(margin, pageH - 12, pageW - margin, pageH - 12)
+      doc.text("MarginFlow — Confidential Weekly Report", margin, pageH - 7)
+      const pLabel = `Page ${p} of ${totalPages}`
+      doc.text(pLabel, pageW - margin - doc.getTextWidth(pLabel), pageH - 7)
+    }
+
+    const company = (report?.company_name || "weekly").toLowerCase().replace(/\s+/g, "-")
+    const week = report?.week_ending || "week"
+    doc.save(`marginflow-report-${company}-${week}.pdf`)
+  }
+
   async function handleGeneratePdf() {
     try {
       setBusyAction("pdf")
@@ -670,14 +1080,9 @@ export default function WeeklyReportDetailPage() {
 
       await saveReportSilently()
       await reloadBreakdown()
+      await generateAndDownloadPdf()
 
-      const result = await generateWeeklyReportPdf(reportId)
-
-      if (result.download_url) {
-        window.open(result.download_url, "_blank", "noopener,noreferrer")
-      }
-
-      setSuccessMessage("PDF generated successfully.")
+      setSuccessMessage("PDF downloaded successfully.")
     } catch (err) {
       console.error("Generate PDF error:", err)
       setError(err instanceof Error ? err.message : "Failed to generate PDF.")
@@ -686,22 +1091,64 @@ export default function WeeklyReportDetailPage() {
     }
   }
 
-  async function handleSendEmail() {
+  function handleSendEmail() {
+    setEmailModalOpen(true)
+  }
+
+  async function handleConfirmSendEmail() {
+    if (!emailTo || !emailTo.includes("@")) {
+      setError("Please enter a valid email address.")
+      return
+    }
+
     try {
-      setBusyAction("email")
+      setSendingEmail(true)
       setError(null)
-      setSuccessMessage(null)
 
       await saveReportSilently()
-      await reloadBreakdown()
 
-      const result = await sendWeeklyReportEmail(reportId)
-      setSuccessMessage(result.message || "Weekly report email sent successfully.")
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: emailTo,
+          reportData: {
+            companyName: report?.company_name || "Company",
+            weekLabel: buildWeekLabel(report),
+            weekStart: formatDate(report?.week_start),
+            weekEnd: formatDate(report?.week_end),
+            salesExVat: formatMoney(salesExVat),
+            netProfit: formatMoney(netProfit),
+            netMarginPct: formatPct(netMarginPct),
+            grossProfit: formatMoney(grossProfit),
+            grossMarginPct: formatPct(grossMarginPct),
+            labourTotal: formatMoney(labourTotal),
+            labourPct: formatPct(labourPct),
+            healthLabel,
+            netMarginRaw: netMarginPct,
+            labourRaw: labourPct,
+            netProfitRaw: netProfit,
+            goodSignals: goodSignals.map((s) => s.text),
+            warningSignals: warningSignals.map((s) => s.text),
+            notes: form.notes || "",
+          },
+        }),
+      })
+
+      const data = (await response.json()) as { success: boolean; message?: string }
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to send email.")
+      }
+
+      setEmailModalOpen(false)
+      setEmailTo("")
+      setSuccessMessage(`Report sent to ${emailTo} successfully.`)
     } catch (err) {
       console.error("Send email error:", err)
       setError(err instanceof Error ? err.message : "Failed to send weekly report email.")
     } finally {
-      setBusyAction(null)
+      setSendingEmail(false)
     }
   }
 
@@ -787,6 +1234,96 @@ export default function WeeklyReportDetailPage() {
 
   return (
     <div className="space-y-8">
+      {emailModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => {
+              if (!sendingEmail) {
+                setEmailModalOpen(false)
+                setEmailTo("")
+              }
+            }}
+          />
+
+          <div className="relative w-full max-w-md rounded-[30px] border border-black/5 bg-white/98 p-8 shadow-2xl">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
+                <Mail size={20} />
+              </div>
+
+              <div className="flex-1">
+                <h2 className="text-[1.1rem] font-semibold tracking-[-0.02em] text-zinc-950">
+                  Send by Email
+                </h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Enter the recipient&apos;s email address to send the weekly intelligence report.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (!sendingEmail) {
+                    setEmailModalOpen(false)
+                    setEmailTo("")
+                  }
+                }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-500 transition hover:bg-zinc-50"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 mb-5">
+              <p className="text-xs font-medium text-zinc-500">Report</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-950">
+                {report.company_name} · {buildWeekLabel(report)}
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-medium text-zinc-700">
+                Recipient Email
+              </label>
+              <input
+                type="email"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !sendingEmail) handleConfirmSendEmail()
+                }}
+                placeholder="e.g. owner@company.com"
+                autoFocus
+                className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleConfirmSendEmail}
+                disabled={sendingEmail || !emailTo}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Mail size={15} />
+                {sendingEmail ? "Sending..." : "Send Report"}
+              </button>
+
+              <button
+                onClick={() => {
+                  if (!sendingEmail) {
+                    setEmailModalOpen(false)
+                    setEmailTo("")
+                  }
+                }}
+                disabled={sendingEmail}
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <WorkspacePageHeader
         label="Weekly report detail"
         title="Weekly Intelligence Report"
@@ -924,6 +1461,7 @@ export default function WeeklyReportDetailPage() {
             label="Sales ex VAT"
             value={formatMoney(form.sales_ex_vat)}
             caption="Core revenue base"
+            tooltip="Total gross revenue generated in the period, excluding VAT. The starting point for all profitability calculations."
           />
           <KPI
             icon={<TrendingUp size={18} />}
@@ -931,6 +1469,7 @@ export default function WeeklyReportDetailPage() {
             value={formatMoney(netProfit)}
             caption="Bottom-line result"
             tone={netProfit > 0 ? "success" : "default"}
+            tooltip="The bottom-line result after all costs: food, labour, fixed costs, variable costs, loans, and VAT due."
           />
           <KPI
             icon={<Percent size={18} />}
@@ -938,6 +1477,7 @@ export default function WeeklyReportDetailPage() {
             value={formatPct(netMarginPct)}
             caption="Profitability quality"
             tone={netMarginPct >= 0.18 ? "success" : "default"}
+            tooltip="Net Profit ÷ Revenue × 100. Target 18%+ for a healthy, well-managed operation."
           />
           <KPI
             icon={<Settings2 size={18} />}
@@ -945,6 +1485,7 @@ export default function WeeklyReportDetailPage() {
             value={formatPct(labourPct)}
             caption="Pressure vs revenue"
             tone={labourPct > 0.25 ? "warning" : "default"}
+            tooltip="Total wages and holiday pay as a percentage of Revenue ex VAT. Keep under 32% for a balanced cost structure."
           />
         </div>
 
@@ -1133,7 +1674,10 @@ export default function WeeklyReportDetailPage() {
               icon={<Layers3 size={18} />}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <div className="relative rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                  <div className="absolute right-3 top-3">
+                    <TooltipIcon definition="Number of categorized P&L entries attached to this report. More lines = more detailed financial visibility." />
+                  </div>
                   <p className="text-sm font-medium text-zinc-500">Breakdown Lines</p>
                   <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
                     {breakdownLineCount}
@@ -1141,7 +1685,10 @@ export default function WeeklyReportDetailPage() {
                   <p className="mt-2 text-xs text-zinc-500">Categorized entries in this report</p>
                 </div>
 
-                <div className="rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <div className="relative rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                  <div className="absolute right-3 top-3">
+                    <TooltipIcon definition="Sum of all categorized P&L line items in this report. Compare against the core report totals to check reconciliation." />
+                  </div>
                   <p className="text-sm font-medium text-zinc-500">Breakdown Total</p>
                   <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
                     {formatMoney(breakdownTotal)}
@@ -1149,7 +1696,10 @@ export default function WeeklyReportDetailPage() {
                   <p className="mt-2 text-xs text-zinc-500">Sum of all categorized lines</p>
                 </div>
 
-                <div className="rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <div className="relative rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                  <div className="absolute right-3 top-3">
+                    <TooltipIcon definition="The highest-value categorized P&L line item in this report — the single largest cost or revenue driver." />
+                  </div>
                   <p className="text-sm font-medium text-zinc-500">Top Line</p>
                   <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">
                     {topBreakdownItem?.category_name || "No items yet"}
@@ -1301,28 +1851,44 @@ export default function WeeklyReportDetailPage() {
               icon={<Target size={18} />}
             >
               <div className="space-y-3">
-                <ExecutiveRow label="Sales ex VAT" value={formatMoney(salesExVat)} />
+                <ExecutiveRow
+                  label="Sales ex VAT"
+                  value={formatMoney(salesExVat)}
+                  tooltip="Total gross revenue excluding VAT. The baseline for all profitability calculations."
+                />
                 <ExecutiveRow
                   label="Gross Profit"
                   value={formatMoney(grossProfit)}
                   valueClassName={grossProfit > 0 ? "text-emerald-600" : "text-rose-600"}
+                  tooltip="Revenue minus Cost of Goods Sold (food cost). Measures efficiency before labour and overhead."
                 />
-                <ExecutiveRow label="Gross Margin" value={formatPct(grossMarginPct)} />
-                <ExecutiveRow label="Labour Total" value={formatMoney(labourTotal)} />
+                <ExecutiveRow
+                  label="Gross Margin"
+                  value={formatPct(grossMarginPct)}
+                  tooltip="Gross Profit ÷ Revenue × 100. Above 65% is considered healthy for a café or bakery operation."
+                />
+                <ExecutiveRow
+                  label="Labour Total"
+                  value={formatMoney(labourTotal)}
+                  tooltip="Total wages and holiday pay for the period — the combined direct labour cost."
+                />
                 <ExecutiveRow
                   label="Labour %"
                   value={formatPct(labourPct)}
                   valueClassName={labourPct > 0.25 ? "text-amber-600" : ""}
+                  tooltip="Labour Total as a % of Revenue ex VAT. Keep under 32% for a balanced cost structure."
                 />
                 <ExecutiveRow
                   label="Net Profit"
                   value={formatMoney(netProfit)}
                   valueClassName={netProfit > 0 ? "text-emerald-600" : "text-rose-600"}
+                  tooltip="The bottom-line result after all costs: food, labour, fixed costs, variable costs, loans, and VAT due."
                 />
                 <ExecutiveRow
                   label="Net Margin"
                   value={formatPct(netMarginPct)}
                   valueClassName={netMarginPct >= 0.18 ? "text-emerald-600" : ""}
+                  tooltip="Net Profit ÷ Revenue × 100. Target 18%+ for a healthy, well-managed operation."
                 />
               </div>
             </SectionCard>
@@ -1333,15 +1899,15 @@ export default function WeeklyReportDetailPage() {
               icon={<Sparkles size={18} />}
             >
               <div className="space-y-3">
-                {goodSignals.map((item, index) => (
-                  <Signal key={`good-${index}`} tone="good">
-                    {item}
+                {goodSignals.map((signal, index) => (
+                  <Signal key={`good-${index}`} tone="good" tooltip={signal.tooltip}>
+                    {signal.text}
                   </Signal>
                 ))}
 
-                {warningSignals.map((item, index) => (
-                  <Signal key={`warn-${index}`} tone="warn">
-                    {item}
+                {warningSignals.map((signal, index) => (
+                  <Signal key={`warn-${index}`} tone="warn" tooltip={signal.tooltip}>
+                    {signal.text}
                   </Signal>
                 ))}
 
@@ -1369,6 +1935,7 @@ export default function WeeklyReportDetailPage() {
             </SectionCard>
           </div>
         </div>
+
       </div>
     </div>
   )

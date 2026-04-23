@@ -69,18 +69,45 @@ function fmtDeltaPct(value: number) {
   return `${sign}${(value * 100).toFixed(1)}%`
 }
 
+function TooltipIcon({ definition }: { definition: string }) {
+  return (
+    <div className="group relative inline-flex items-center">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-3.5 w-3.5 cursor-help text-zinc-500 opacity-50 transition-opacity duration-150 group-hover:opacity-90"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+      <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2.5 w-52 -translate-x-1/2 rounded-2xl bg-zinc-900 px-3 py-2.5 text-xs leading-5 text-zinc-100 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+        {definition}
+        <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[5px] border-x-transparent border-t-zinc-900" />
+      </div>
+    </div>
+  )
+}
+
 function MetricCard({
   title,
   value,
   subtitle,
   note,
   tone = "default",
+  tooltip,
 }: {
   title: string
   value: string
   subtitle?: string
   note?: string
   tone?: "default" | "yellow" | "red" | "green" | "blue"
+  tooltip?: string
 }) {
   const toneMap = {
     default: "from-white to-zinc-50 border-zinc-200",
@@ -91,7 +118,12 @@ function MetricCard({
   }
 
   return (
-    <div className={`rounded-2xl border bg-gradient-to-br p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5 ${toneMap[tone]}`}>
+    <div className={`relative rounded-2xl border bg-gradient-to-br p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5 hover:z-10 ${toneMap[tone]}`}>
+      {tooltip ? (
+        <div className="absolute right-3 top-3">
+          <TooltipIcon definition={tooltip} />
+        </div>
+      ) : null}
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{title}</p>
       <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 md:text-[2.4rem]">{value}</p>
       {subtitle && <p className="mt-3 text-sm leading-6 text-zinc-500">{subtitle}</p>}
@@ -399,6 +431,7 @@ export default function CompanyPage() {
                       : "No meaningful sales base yet."
                   }
                   tone="yellow"
+                  tooltip="Total gross revenue generated in the period, including VAT. The top-line sales figure before any costs are deducted."
                 />
 
                 <MetricCard
@@ -411,6 +444,7 @@ export default function CompanyPage() {
                       : "Within healthier labour range"
                   }
                   tone="red"
+                  tooltip="Total wages as a percentage of Revenue ex VAT. Keep under 32–35% for a balanced labour cost structure."
                 />
 
                 <MetricCard
@@ -423,6 +457,7 @@ export default function CompanyPage() {
                       : "No gross profit conversion yet"
                   }
                   tone="green"
+                  tooltip="The bottom-line result after all costs: food, labour, fixed costs, variable costs, loans, and VAT due."
                 />
 
                 <MetricCard
@@ -431,6 +466,7 @@ export default function CompanyPage() {
                   subtitle={`Food Cost: ${fmtMoney(dashboard.total_food_cost)}`}
                   note={cashFlow < 0 ? "Negative operating result" : "Positive operating result"}
                   tone="blue"
+                  tooltip="Operating cash generated: Revenue minus all operational costs. Positive means the business is self-funding its operations."
                 />
               </div>
 
@@ -441,6 +477,7 @@ export default function CompanyPage() {
                   subtitle="Net profit as % of sales ex VAT"
                   note="North-star profitability metric"
                   tone="green"
+                  tooltip="Net Profit ÷ Revenue ex VAT × 100. Measures how efficiently the business converts top-line revenue into bottom-line profit."
                 />
 
                 <MetricCard
@@ -453,6 +490,7 @@ export default function CompanyPage() {
                       : "Food cost is in a healthier range"
                   }
                   tone="yellow"
+                  tooltip="Cost of ingredients and consumables as a percentage of Revenue ex VAT. Target under 30% for healthy gross margins."
                 />
 
                 <MetricCard
@@ -465,6 +503,7 @@ export default function CompanyPage() {
                   }
                   note="Net profit movement vs prior week"
                   tone="blue"
+                  tooltip="Net profit change versus the prior week, expressed as a percentage. Positive = improving trend, negative = declining trend."
                 />
               </div>
 

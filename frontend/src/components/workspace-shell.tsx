@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   BarChart3,
   Building2,
+  Scale,
   Home,
   Plus,
   Wallet,
@@ -122,6 +123,11 @@ export default function WorkspaceShell({
         href: `${companyBaseHref}/sales`,
         label: "Sales",
         icon: <Wallet size={16} />,
+      },
+      {
+        href: `${companyBaseHref}/costing`,
+        label: "Costing",
+        icon: <Scale size={16} />,
       },
       {
         href: `${companyBaseHref}/comparison`,

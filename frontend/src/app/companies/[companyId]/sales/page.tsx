@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import {
   disconnectZohoConnection,
   getSalesAnalytics,
   getZohoConnectUrl,
-  syncUnifyZohoSales,
+  syncZohoSales,
   type SalesAnalyticsResponse,
   type SalesCustomerRow,
 } from "@/services/api"
@@ -26,6 +26,7 @@ import {
 
 type SalesRange = "week" | "4w" | "3m" | "6m" | "12m"
 type SalesMetric = "sales_inc_vat" | "sales_ex_vat" | "invoice_count"
+type ItemSortKey = "revenue_ex_vat" | "quantity_sold"
 
 const rangeOptions: Array<{ value: SalesRange; label: string; days: number }> = [
   { value: "week", label: "Week", days: 7 },
@@ -73,6 +74,28 @@ function formatShortDate(value?: string | null) {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
   return new Intl.DateTimeFormat("en-IE", { day: "2-digit", month: "short" }).format(d)
+}
+
+function getFriendlySyncError(message: string) {
+  const lower = message.toLowerCase()
+
+  if (message.includes("API error 400") && lower.includes("zoho is not connected")) {
+    return "Connect Zoho Invoice for this company before refreshing Zoho sales."
+  }
+
+  if (message.includes("API error 400") && lower.includes("no valid organization id")) {
+    return "Zoho is connected, but this company is missing a valid Zoho organization ID. Reconnect Zoho Invoice and try again."
+  }
+
+  if (message.includes("API error 400") && lower.includes("zoho refresh token failed")) {
+    return "Zoho needs to be reconnected before sales can be refreshed."
+  }
+
+  if (message.includes("API error 400") && lower.includes("zoho invoices fetch failed")) {
+    return "Zoho rejected the invoice refresh request. Reconnect Zoho Invoice and verify the saved organization details."
+  }
+
+  return message
 }
 
 function formatLocalISODate(date: Date) {
@@ -153,7 +176,7 @@ function CustomerSummary({ customer }: { customer: SalesCustomerRow | null }) {
   if (!customer) {
     return (
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 text-sm text-zinc-500">
-        No customer detail available yet. Sync Unify orders to unlock purchase breakdowns.
+        No customer detail available yet. Refresh Zoho sales to unlock purchase breakdowns.
       </div>
     )
   }
@@ -252,6 +275,7 @@ export default function CompanySalesPage() {
   const [selectedRange, setSelectedRange] = useState<SalesRange>("4w")
   const [selectedMetric, setSelectedMetric] = useState<SalesMetric>("sales_inc_vat")
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
+  const [itemSortKey, setItemSortKey] = useState<ItemSortKey>("revenue_ex_vat")
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
@@ -286,6 +310,13 @@ export default function CompanySalesPage() {
       if (message.includes("API error 500")) {
         setError(
           "Sales intelligence is installed, but the backend returned an error. Check the API logs, Zoho sync tables, and recent migrations."
+        )
+        return
+      }
+
+      if (message.includes("API error 503") && message.toLowerCase().includes("sales ledger tables are missing")) {
+        setError(
+          "Sales intelligence needs the sales ledger migration before it can load. Run the backend migrations with `alembic upgrade heads` and refresh this page."
         )
         return
       }
@@ -352,13 +383,17 @@ export default function CompanySalesPage() {
       setSyncing(true)
       setSyncError(null)
       setSyncMessage(null)
-      const result = await syncUnifyZohoSales(companyId)
+      const result = await syncZohoSales(companyId, {
+        dateFrom: selectedRangeWindow.dateFrom,
+        dateTo: selectedRangeWindow.dateTo,
+      })
       setSyncMessage(
-        `Loaded ${result.products_loaded} products, fetched ${result.orders_fetched} Unify orders, created ${result.invoices_created} Zoho drafts, and skipped ${result.duplicates_skipped} duplicate groups.`
+        `Refreshed ${result.invoices_synced ?? 0} Zoho invoices and ${result.line_items_synced ?? 0} line items for the ${selectedRangeWindow.label.toLowerCase()} window.`
       )
       await loadSalesData()
     } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Failed to sync Unify orders.")
+      const message = err instanceof Error ? err.message : "Failed to refresh Zoho sales."
+      setSyncError(getFriendlySyncError(message))
     } finally {
       setSyncing(false)
     }
@@ -413,9 +448,10 @@ export default function CompanySalesPage() {
 
       {!loading && analytics && (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <MetricCard title="Sales inc VAT" value={fmtMoney(analytics.total_sales_inc_vat)} subtitle={`Latest ${selectedRangeWindow.label.toLowerCase()} of Zoho invoice activity.`} tone="amber" />
             <MetricCard title="Sales ex VAT" value={fmtMoney(analytics.total_sales_ex_vat)} subtitle="Corrected net revenue for reporting and weekly analytics." tone="green" />
+            <MetricCard title="VAT Collected" value={fmtMoney(analytics.vat_collected)} subtitle="Difference between inc and ex VAT — useful for VAT returns." />
             <MetricCard title="Invoice Count" value={fmtInt(analytics.invoice_count)} subtitle="Invoices captured in the selected time window." tone="blue" />
             <MetricCard title="Active Customers" value={fmtInt(analytics.active_customers)} subtitle="Distinct customers buying in this period." />
             <MetricCard title="Average Order Value" value={fmtMoney(analytics.average_order_value)} subtitle="Average basket value ex VAT." />
@@ -452,7 +488,7 @@ export default function CompanySalesPage() {
                   <>
                     <button onClick={handleSync} disabled={syncing || disconnecting} className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
                       <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
-                      {syncing ? "Syncing..." : "Sync Unify orders"}
+                      {syncing ? "Refreshing..." : "Refresh Zoho sales"}
                     </button>
                     <button onClick={handleDisconnect} disabled={disconnecting || syncing} className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60">
                       <RotateCcw size={16} className={disconnecting ? "animate-spin" : ""} />
@@ -505,7 +541,7 @@ export default function CompanySalesPage() {
                   <p className="text-sm font-medium text-zinc-500">Top customer</p>
                   <p className="mt-2 text-lg font-semibold text-zinc-950">{topCustomer?.customer_name ?? "No customers yet"}</p>
                   <p className="mt-1 text-sm text-zinc-500">
-                    {topCustomer ? `${fmtMoney(topCustomer.total_spend_ex_vat)} ex VAT across ${fmtInt(topCustomer.invoice_count)} invoices` : "Sync Unify orders to reveal customer ranking and basket intelligence."}
+                    {topCustomer ? `${fmtMoney(topCustomer.total_spend_ex_vat)} ex VAT across ${fmtInt(topCustomer.invoice_count)} invoices` : "Refresh Zoho sales to reveal customer ranking and basket intelligence."}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
@@ -567,7 +603,7 @@ export default function CompanySalesPage() {
               </div>
               <p className="mt-4 text-sm text-zinc-500">
                 Showing {selectedRangeWindow.label.toLowerCase()} of Zoho invoice activity.{" "}
-                {analytics.connection.connected ? "Sync pulls Unify orders into Zoho drafts and refreshes the sales ledger." : "Connect Zoho to turn this chart into live sales intelligence."}
+                {analytics.connection.connected ? "Refresh Zoho invoices to update the shared sales ledger behind this analytics view." : "Connect Zoho to turn this chart into live sales intelligence."}
               </p>
             </div>
           </Card>
@@ -590,7 +626,7 @@ export default function CompanySalesPage() {
                     {analytics.top_customers.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-6 py-10 text-center text-zinc-500">
-                          No customer rankings yet. Sync Unify orders to populate customer analytics.
+                          No customer rankings yet. Refresh Zoho sales to populate customer analytics.
                         </td>
                       </tr>
                     ) : (
@@ -650,6 +686,20 @@ export default function CompanySalesPage() {
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <Card title="Top selling items" subtitle="Best-performing items by revenue and volume.">
+              <div className="border-b border-zinc-100 px-5 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-zinc-400">Sort by</span>
+                  {([["revenue_ex_vat", "Revenue (ex VAT)"], ["quantity_sold", "Qty sold"]] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setItemSortKey(key)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${itemSortKey === key ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-white hover:text-zinc-950"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-zinc-50 text-left text-zinc-500">
@@ -658,102 +708,158 @@ export default function CompanySalesPage() {
                       <th className="px-6 py-4 font-medium">Item</th>
                       <th className="px-6 py-4 font-medium text-right">Qty sold</th>
                       <th className="px-6 py-4 font-medium text-right">Ex VAT</th>
-                      <th className="px-6 py-4 font-medium text-right">Inc VAT</th>
                       <th className="px-6 py-4 font-medium text-right">Invoices</th>
                     </tr>
                   </thead>
                   <tbody>
                     {analytics.top_items.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-10 text-center text-zinc-500">
-                          No item rankings yet. Sync Unify orders to populate this view.
+                        <td colSpan={5} className="px-6 py-10 text-center text-zinc-500">
+                          No item rankings yet. Refresh Zoho sales to populate this view.
                         </td>
                       </tr>
                     ) : (
-                      analytics.top_items.map((item) => (
-                        <tr
-                          key={`${item.item_name}-${item.rank}`}
-                          className="border-t border-zinc-100/80 transition hover:bg-zinc-50/70"
-                        >
-                          <td className="px-6 py-4 font-medium text-zinc-900">{item.rank}</td>
-                          <td className="px-6 py-4">
-                            <div className="font-medium text-zinc-950">{item.item_name}</div>
-                          </td>
-                          <td className="px-6 py-4 text-right text-zinc-700">
-                            {fmtInt(item.quantity_sold)}
-                          </td>
-                          <td className="px-6 py-4 text-right text-zinc-700">
-                            {fmtMoney(item.revenue_ex_vat)}
-                          </td>
-                          <td className="px-6 py-4 text-right text-zinc-700">
-                            {fmtMoney(item.revenue_inc_vat)}
-                          </td>
-                          <td className="px-6 py-4 text-right text-zinc-700">
-                            {fmtInt(item.invoice_count)}
-                          </td>
-                        </tr>
-                      ))
+                      [...analytics.top_items]
+                        .sort((a, b) => b[itemSortKey] - a[itemSortKey])
+                        .map((item, idx) => (
+                          <tr
+                            key={`${item.item_name}-${item.rank}`}
+                            className="border-t border-zinc-100/80 transition hover:bg-zinc-50/70"
+                          >
+                            <td className="px-6 py-4">
+                              <span className="inline-flex rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-700">{idx + 1}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-medium text-zinc-950">{item.item_name}</div>
+                            </td>
+                            <td className="px-6 py-4 text-right text-zinc-700">
+                              {fmtInt(item.quantity_sold)}
+                            </td>
+                            <td className="px-6 py-4 text-right font-medium text-zinc-900">
+                              {fmtMoney(item.revenue_ex_vat)}
+                            </td>
+                            <td className="px-6 py-4 text-right text-zinc-700">
+                              {fmtInt(item.invoice_count)}
+                            </td>
+                          </tr>
+                        ))
                     )}
                   </tbody>
                 </table>
               </div>
             </Card>
 
-            <Card
-              title="Recent invoices"
-              subtitle="Recent Zoho invoices captured in the selected range."
-            >
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-zinc-50 text-left text-zinc-500">
-                    <tr>
-                      <th className="px-6 py-4 font-medium">Date</th>
-                      <th className="px-6 py-4 font-medium">Invoice</th>
-                      <th className="px-6 py-4 font-medium">Customer</th>
-                      <th className="px-6 py-4 font-medium text-right">Ex VAT</th>
-                      <th className="px-6 py-4 font-medium text-right">Inc VAT</th>
-                      <th className="px-6 py-4 font-medium text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analytics.recent_invoices.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-10 text-center text-zinc-500">
-                          No invoice history in this range yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      analytics.recent_invoices.map((invoice) => (
-                        <tr
-                          key={`${invoice.invoice_number ?? invoice.invoice_date}-${invoice.customer_name ?? "invoice"}`}
-                          className="border-t border-zinc-100/80 transition hover:bg-zinc-50/70"
+            <Card title="Item mix" subtitle="Revenue share by item in the selected window.">
+              {analytics.top_items.length === 0 ? (
+                <div className="p-6 text-sm text-zinc-500">
+                  No item data yet. Refresh Zoho sales to unlock item mix breakdown.
+                </div>
+              ) : (
+                <>
+                  <div className="p-5 pb-2">
+                    <div className="h-[260px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          layout="vertical"
+                          data={[...analytics.top_items]
+                            .sort((a, b) => b.revenue_ex_vat - a.revenue_ex_vat)
+                            .slice(0, 8)
+                            .map((item) => ({
+                              name: item.item_name.length > 20 ? item.item_name.slice(0, 19) + "…" : item.item_name,
+                              value: item.revenue_ex_vat,
+                            }))}
+                          margin={{ top: 0, right: 16, bottom: 0, left: 0 }}
                         >
-                          <td className="px-6 py-4 text-zinc-700">{formatDate(invoice.invoice_date)}</td>
-                          <td className="px-6 py-4 font-medium text-zinc-950">
-                            {invoice.invoice_number ?? "-"}
-                          </td>
-                          <td className="px-6 py-4 text-zinc-700">
-                            {invoice.customer_name ?? "-"}
-                          </td>
-                          <td className="px-6 py-4 text-right text-zinc-700">
-                            {fmtMoney(invoice.total_ex_vat)}
-                          </td>
-                          <td className="px-6 py-4 text-right text-zinc-700">
-                            {fmtMoney(invoice.total_inc_vat)}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-600">
-                              {invoice.status ?? "Open"}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          <XAxis type="number" tick={{ fill: "#71717a", fontSize: 11 }} tickFormatter={(v) => fmtMoney(Number(v))} />
+                          <YAxis type="category" dataKey="name" tick={{ fill: "#3f3f46", fontSize: 11 }} width={130} />
+                          <Tooltip formatter={(v) => fmtMoney(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid #e4e4e7", background: "#ffffff", fontSize: 12 }} />
+                          <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                            {[...analytics.top_items].slice(0, 8).map((_, i) => (
+                              <Cell key={i} fill={i === 0 ? "#09090b" : i < 3 ? "#3f3f46" : "#a1a1aa"} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div className="px-5 pb-5 pt-2 space-y-2">
+                    {[...analytics.top_items]
+                      .sort((a, b) => b.revenue_ex_vat - a.revenue_ex_vat)
+                      .slice(0, 5)
+                      .map((item) => {
+                        const pct = analytics.total_sales_ex_vat > 0 ? item.revenue_ex_vat / analytics.total_sales_ex_vat : 0
+                        return (
+                          <div key={item.item_name}>
+                            <div className="flex items-center justify-between text-xs text-zinc-500 mb-1">
+                              <span className="font-medium text-zinc-700 truncate max-w-[60%]">{item.item_name}</span>
+                              <span>{(pct * 100).toFixed(1)}% · {fmtMoney(item.revenue_ex_vat)}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-zinc-100 overflow-hidden">
+                              <div className="h-full rounded-full bg-zinc-900 transition-all" style={{ width: `${Math.min(pct * 100, 100)}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </>
+              )}
             </Card>
           </div>
+
+          <Card
+            title="Recent invoices"
+            subtitle="Recent Zoho invoices captured in the selected range."
+          >
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-zinc-50 text-left text-zinc-500">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">Date</th>
+                    <th className="px-6 py-4 font-medium">Invoice</th>
+                    <th className="px-6 py-4 font-medium">Customer</th>
+                    <th className="px-6 py-4 font-medium text-right">Ex VAT</th>
+                    <th className="px-6 py-4 font-medium text-right">Inc VAT</th>
+                    <th className="px-6 py-4 font-medium text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.recent_invoices.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-10 text-center text-zinc-500">
+                        No invoice history in this range yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    analytics.recent_invoices.map((invoice) => (
+                      <tr
+                        key={`${invoice.invoice_number ?? invoice.invoice_date}-${invoice.customer_name ?? "invoice"}`}
+                        className="border-t border-zinc-100/80 transition hover:bg-zinc-50/70"
+                      >
+                        <td className="px-6 py-4 text-zinc-700">{formatDate(invoice.invoice_date)}</td>
+                        <td className="px-6 py-4 font-medium text-zinc-950">
+                          {invoice.invoice_number ?? "-"}
+                        </td>
+                        <td className="px-6 py-4 text-zinc-700">
+                          {invoice.customer_name ?? "-"}
+                        </td>
+                        <td className="px-6 py-4 text-right text-zinc-700">
+                          {fmtMoney(invoice.total_ex_vat)}
+                        </td>
+                        <td className="px-6 py-4 text-right text-zinc-700">
+                          {fmtMoney(invoice.total_inc_vat)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-600">
+                            {invoice.status ?? "Open"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">

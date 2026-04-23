@@ -10,3 +10,6 @@ from app.models.zoho_sales_invoice import ZohoSalesInvoice
 from app.models.zoho_sales_invoice_item import ZohoSalesInvoiceItem
 from app.models.financial_category import FinancialCategory
 from app.models.weekly_report_item import WeeklyReportItem
+from app.models.ingredient import Ingredient
+from app.models.purchase_invoice import PurchaseInvoice
+from app.models.purchase_invoice_line import PurchaseInvoiceLine

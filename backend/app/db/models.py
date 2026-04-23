@@ -11,3 +11,6 @@ from app.models.refresh_token import RefreshToken  # noqa: F401
 from app.models.zoho_connection import ZohoConnection  # noqa: F401
 from app.models.zoho_sales_invoice import ZohoSalesInvoice  # noqa: F401
 from app.models.zoho_sales_invoice_item import ZohoSalesInvoiceItem  # noqa: F401
+from app.models.ingredient import Ingredient  # noqa: F401
+from app.models.purchase_invoice import PurchaseInvoice  # noqa: F401
+from app.models.purchase_invoice_line import PurchaseInvoiceLine  # noqa: F401

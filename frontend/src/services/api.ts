@@ -68,6 +68,93 @@ export type CompanyUpdatePayload = {
   integration_notes?: string | null
 }
 
+export type PurchaseInvoiceLinePayload = {
+  ingredient_name: string
+  ingredient_sku?: string | null
+  category?: string | null
+  quantity_purchased: number
+  purchase_unit: string
+  pack_size_value?: number | null
+  pack_size_unit?: string | null
+  net_quantity_for_costing: number
+  costing_unit: string
+  line_total_ex_vat: number
+  vat_rate: number
+  line_total_inc_vat?: number | null
+  brand?: string | null
+  supplier_product_name?: string | null
+}
+
+export type PurchaseInvoiceCreatePayload = {
+  supplier_name: string
+  invoice_number: string
+  invoice_date: string
+  due_date?: string | null
+  currency?: string
+  notes?: string | null
+  attachment_name?: string | null
+  vat_included?: boolean
+  subtotal_ex_vat?: number | null
+  vat_total?: number | null
+  total_inc_vat?: number | null
+  status: "draft" | "posted"
+  lines: PurchaseInvoiceLinePayload[]
+}
+
+export type PurchaseInvoiceLine = {
+  id: string
+  ingredient_id?: string | null
+  line_order: number
+  ingredient_name: string
+  ingredient_sku?: string | null
+  category?: string | null
+  quantity_purchased: number
+  purchase_unit: string
+  pack_size_value?: number | null
+  pack_size_unit?: string | null
+  net_quantity_for_costing: number
+  costing_unit: string
+  line_total_ex_vat: number
+  vat_rate: number
+  vat_amount: number
+  line_total_inc_vat: number
+  normalized_unit_cost_ex_vat: number
+  normalized_unit_cost_inc_vat: number
+  brand?: string | null
+  supplier_product_name?: string | null
+}
+
+export type PurchaseInvoice = {
+  id: string
+  tenant_id: string
+  company_id: string
+  supplier_name: string
+  invoice_number: string
+  invoice_date: string
+  due_date?: string | null
+  currency: string
+  notes?: string | null
+  attachment_name?: string | null
+  vat_included: boolean
+  subtotal_ex_vat: number
+  vat_total: number
+  total_inc_vat: number
+  status: "draft" | "posted"
+  created_at?: string | null
+  updated_at?: string | null
+  lines: PurchaseInvoiceLine[]
+}
+
+export type PurchaseInvoiceListResponse = {
+  company_id: string
+  total_invoices: number
+  posted_invoices: number
+  draft_invoices: number
+  total_spend_ex_vat: number
+  total_spend_inc_vat: number
+  invoices: PurchaseInvoice[]
+}
+
 export type ZohoSyncResponse = {
   success: boolean
   company_id: string
@@ -176,6 +263,7 @@ export type SalesAnalyticsResponse = {
   connection: SalesConnectionState
   total_sales_inc_vat: number
   total_sales_ex_vat: number
+  vat_collected: number
   invoice_count: number
   active_customers: number
   average_order_value: number
@@ -716,6 +804,24 @@ export async function getCompanies(): Promise<Company[]> {
 
 export async function getCompanyById(companyId: string): Promise<Company> {
   return authFetch<Company>(`/api/companies/${companyId}`)
+}
+
+export async function getCompanyPurchaseInvoices(
+  companyId: string
+): Promise<PurchaseInvoiceListResponse> {
+  return authFetch<PurchaseInvoiceListResponse>(`/api/costing/${companyId}/purchase-invoices`, {
+    method: "GET",
+  })
+}
+
+export async function createCompanyPurchaseInvoice(
+  companyId: string,
+  payload: PurchaseInvoiceCreatePayload
+): Promise<PurchaseInvoice> {
+  return authFetch<PurchaseInvoice>(`/api/costing/${companyId}/purchase-invoices`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function createCompany(

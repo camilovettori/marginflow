@@ -19,6 +19,7 @@ from app.routes.unify_sync import router as unify_sync_router
 from app.routes.sales import router as sales_router
 from app.routes.financial_categories import router as financial_categories_router
 from app.routes.weekly_report_items import router as weekly_report_items_router
+from app.routes.purchase_invoices import router as purchase_invoices_router
 
 app = FastAPI(title=f"{APP_NAME} API")
 
@@ -52,6 +53,7 @@ app.include_router(sales_router)
 app.include_router(unify_sync_router)
 app.include_router(financial_categories_router)
 app.include_router(weekly_report_items_router)
+app.include_router(purchase_invoices_router)
 
 # Integrations
 app.include_router(zoho_router)

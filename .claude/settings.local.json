@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('jspdf:', p.dependencies.jspdf, 'resend:', p.dependencies.resend\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); const all={...p.dependencies,...p.devDependencies}; Object.keys\\(all\\).filter\\(k=>k.includes\\('radix'\\)||k.includes\\('shadcn'\\)||k.includes\\('floating'\\)||k.includes\\('tooltip'\\)||k.includes\\('popover'\\)\\).forEach\\(k=>console.log\\(k,all[k]\\)\\)\")",
+      "Bash(grep -E \"\\\\.\\(py\\)$\")",
+      "Bash(python -c \"from app.schemas.sales import SalesAnalyticsResponse, SalesItemsListResponse, SalesCustomersListResponse; print\\('schemas OK'\\)\")",
+      "Bash(python -c \"from app.routes.sales import router; print\\('routes OK'\\)\")",
+      "Bash(netstat -ano)",
+      "Bash(curl -s \"http://127.0.0.1:8000/api/sales/00000000-0000-0000-0000-000000000000?range=4w\" -w \"\\\\nHTTP_STATUS:%{http_code}\")",
+      "Bash(python -c \"from app.main import app; print\\('Full app imports OK'\\)\")",
+      "Bash(curl -s -X OPTIONS 'http://127.0.0.1:8000/api/sales/test?range=4w' -H 'Origin: http://localhost:3000' -H 'Access-Control-Request-Method: GET' -H 'Access-Control-Request-Headers: Content-Type,Authorization,X-Tenant-Id' -w '\\\\nHTTP_STATUS:%{http_code}' -v)",
+      "Bash(tasklist /FI \"PID eq 34912\")",
+      "PowerShell(curl -s \"http://127.0.0.1:8000/docs\" -o $null -w \"docs_status: %{http_code}\" 2>&1)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8000 -State Listen | ForEach-Object { Get-Process -Id $_.OwningProcess })",
+      "Bash(python -c ' *)",
+      "PowerShell(Get-WmiObject Win32_Process -Filter \"ProcessId = 34912\")",
+      "PowerShell(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -or $_.Name -eq 'python' } | Select-Object ProcessId, CommandLine | Format-List)",
+      "Bash(venv/Scripts/python.exe -c ' *)",
+      "Bash(../venv/Scripts/python.exe -c ' *)",
+      "Bash(curl -s \"http://127.0.0.1:8000/health\")",
+      "Bash(curl -s \"http://127.0.0.1:8000/openapi.json\")",
+      "Bash(python3 -c \"import sys,json; paths=json.load\\(sys.stdin\\)['paths']; sales=[p for p in paths if 'sales' in p]; print\\('Sales routes:', sales\\)\")",
+      "Bash(../venv/Scripts/python.exe -c \"import sys,json; paths=json.load\\(sys.stdin\\)['paths']; sales=[p for p in paths if 'sales' in p]; print\\('Sales routes:', sales\\)\")",
+      "PowerShell(Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in @\\(3000,3001,3002,3003\\) } | Select-Object LocalAddress, LocalPort, OwningProcess | ForEach-Object { $proc = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; [PSCustomObject]@{Port=$_.LocalPort; PID=$_.OwningProcess; Process=$proc.Name} })",
+      "PowerShell(Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -ge 3000 -and $_.LocalPort -le 4000 } | Select-Object LocalPort, OwningProcess)",
+      "PowerShell(Get-NetTCPConnection -State Listen | Select-Object LocalPort, OwningProcess | Sort-Object LocalPort | Where-Object { $_.LocalPort -lt 10000 })",
+      "PowerShell(netstat -an)",
+      "PowerShell(Get-Process | Where-Object { $_.Name -match 'python' } | Select-Object Id, Name, Responding, CPU)",
+      "Bash(curl -s \"http://127.0.0.1:8000/health\" -w \"\\\\nSTATUS:%{http_code}\\\\n\")",
+      "Bash(curl -s -X OPTIONS \"http://127.0.0.1:8000/api/sales/test?range=4w\" -H \"Origin: http://localhost:3000\" -H \"Access-Control-Request-Method: GET\" -H \"Access-Control-Request-Headers: Content-Type,Authorization,X-Tenant-Id,Cache-Control\" -w \"\\\\nPREFLIGHT_STATUS:%{http_code}\")",
+      "Bash(curl -s -I 'http://127.0.0.1:8000/api/sales/00000000-0000-0000-0000-000000000000?range=4w' -H 'Origin: http://localhost:3000' -H 'X-Tenant-Id: 00000000-0000-0000-0000-000000000000' -H 'Authorization: Bearer test' -H 'Content-Type: application/json')"
+    ]
+  }
+}
