@@ -12,7 +12,9 @@ import httpx
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from dotenv import dotenv_values
 
+from app.core.config import ENV_PATH
 from app.models.company import Company
 from app.models.zoho_connection import ZohoConnection
 from app.models.zoho_sales_invoice import ZohoSalesInvoice
@@ -21,12 +23,39 @@ from app.services.zoho_sales_service import get_valid_access_token, persist_sale
 
 logger = logging.getLogger(__name__)
 
-UNIFY_API_BASE = os.getenv("UNIFY_API_BASE", "").rstrip("/")
-UNIFY_API_KEY = os.getenv("UNIFY_API_KEY", "")
-UNIFY_API_AUTH_HEADER = os.getenv("UNIFY_API_AUTH_HEADER", "Authorization")
-UNIFY_API_AUTH_PREFIX = os.getenv("UNIFY_API_AUTH_PREFIX", "Bearer")
-UNIFY_PRODUCTS_PATH = os.getenv("UNIFY_PRODUCTS_PATH", "/v1/products")
-UNIFY_ORDERS_PATH = os.getenv("UNIFY_ORDERS_PATH", "/v1/orders")
+
+def _read_unify_setting(name: str, default: str = "") -> str:
+    process_value = os.getenv(name)
+    if process_value not in (None, ""):
+        return process_value
+
+    env_file_value = dotenv_values(ENV_PATH).get(name)
+    if env_file_value in (None, ""):
+        return default
+
+    return str(env_file_value)
+
+
+def _unify_config() -> dict[str, str]:
+    return {
+        "api_base": _read_unify_setting("UNIFY_API_BASE", "").rstrip("/"),
+        "api_key": _read_unify_setting("UNIFY_API_KEY", ""),
+        "auth_header": _read_unify_setting("UNIFY_API_AUTH_HEADER", "Authorization"),
+        "auth_prefix": _read_unify_setting("UNIFY_API_AUTH_PREFIX", "Bearer"),
+        "products_path": _read_unify_setting("UNIFY_PRODUCTS_PATH", "/v1/products"),
+        "orders_path": _read_unify_setting("UNIFY_ORDERS_PATH", "/v1/orders"),
+    }
+
+
+def _ensure_unify_config() -> dict[str, str]:
+    config = _unify_config()
+    if config["api_base"] and config["api_key"]:
+        return config
+
+    raise HTTPException(
+        status_code=503,
+        detail=f"Unify sync is not configured on this server yet. Add UNIFY_API_BASE and UNIFY_API_KEY to {ENV_PATH}.",
+    )
 
 
 def _d(value: Any) -> Decimal:
@@ -58,16 +87,13 @@ def _parse_date(value: Any) -> date | None:
 
 
 def _unify_headers() -> dict[str, str]:
-    if not UNIFY_API_BASE:
-        raise HTTPException(status_code=500, detail="UNIFY_API_BASE is not configured on the server.")
-    if not UNIFY_API_KEY:
-        raise HTTPException(status_code=500, detail="UNIFY_API_KEY is not configured on the server.")
+    config = _ensure_unify_config()
 
-    token = UNIFY_API_KEY
-    if UNIFY_API_AUTH_PREFIX:
-        token = f"{UNIFY_API_AUTH_PREFIX} {token}".strip()
+    token = config["api_key"]
+    if config["auth_prefix"]:
+        token = f"{config['auth_prefix']} {token}".strip()
 
-    return {UNIFY_API_AUTH_HEADER: token, "Accept": "application/json"}
+    return {config["auth_header"]: token, "Accept": "application/json"}
 
 
 def _zoho_headers(access_token: str, organization_id: str) -> dict[str, str]:
@@ -80,7 +106,8 @@ def _zoho_headers(access_token: str, organization_id: str) -> dict[str, str]:
 
 
 def _unify_url(path: str) -> str:
-    return f"{UNIFY_API_BASE}{path}"
+    config = _ensure_unify_config()
+    return f"{config['api_base']}{path}"
 
 
 async def _fetch_unify_paginated(client: httpx.AsyncClient, path: str, root_keys: tuple[str, ...]) -> list[dict]:
@@ -458,11 +485,7 @@ async def sync_unify_orders_to_zoho_invoices(
     tenant_id: UUID,
     company_id: UUID,
 ) -> dict[str, Any]:
-    if not UNIFY_API_BASE or not UNIFY_API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="Unify sync is not configured on the server. Set UNIFY_API_BASE and UNIFY_API_KEY.",
-        )
+    config = _ensure_unify_config()
 
     company = (
         db.query(Company)
@@ -491,8 +514,8 @@ async def sync_unify_orders_to_zoho_invoices(
     logs: list[str] = []
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        products = await _fetch_unify_paginated(client, UNIFY_PRODUCTS_PATH, ("products", "data", "items"))
-        orders = await _fetch_unify_paginated(client, UNIFY_ORDERS_PATH, ("orders", "data", "items"))
+        products = await _fetch_unify_paginated(client, config["products_path"], ("products", "data", "items"))
+        orders = await _fetch_unify_paginated(client, config["orders_path"], ("orders", "data", "items"))
         logs.append(f"products loaded: {len(products)}")
         logs.append(f"orders fetched: {len(orders)}")
         logger.info("Unify products loaded: %s", len(products))

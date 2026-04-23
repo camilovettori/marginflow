@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -236,6 +237,71 @@ async def _fetch_all_invoices(
     return invoices
 
 
+def _filter_invoices_for_range(
+    invoices: list[dict],
+    *,
+    date_from: date | None,
+    date_to: date | None,
+) -> list[dict]:
+    filtered: list[dict] = []
+
+    for invoice in invoices:
+        invoice_date = _parse_invoice_date(
+            invoice.get("date") or invoice.get("invoice_date")
+        )
+        if not invoice_date:
+            continue
+        if date_from and invoice_date < date_from:
+            continue
+        if date_to and invoice_date > date_to:
+            continue
+        filtered.append(invoice)
+
+    return filtered
+
+
+async def _fetch_invoice_details(
+    *,
+    access_token: str,
+    organization_id: str,
+    invoices: list[dict],
+    max_concurrency: int = 8,
+) -> list[dict]:
+    if not invoices:
+        return []
+
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def fetch_detail(client: httpx.AsyncClient, invoice: dict) -> dict:
+        invoice_id = invoice.get("invoice_id")
+        if not invoice_id:
+            return invoice
+
+        async with semaphore:
+            response = await client.get(
+                f"{ZOHO_INVOICE_API_BASE}/invoices/{invoice_id}",
+                headers={
+                    "Authorization": f"Zoho-oauthtoken {access_token}",
+                },
+                params={
+                    "organization_id": organization_id,
+                },
+            )
+
+        if response.status_code >= 400:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Zoho invoice detail fetch failed for {invoice_id}: {response.text}",
+            )
+
+        data = response.json()
+        return data.get("invoice") or invoice
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        tasks = [fetch_detail(client, invoice) for invoice in invoices]
+        return await asyncio.gather(*tasks)
+
+
 def _build_weekly_totals(
     *,
     invoices: list[dict],
@@ -336,13 +402,21 @@ async def get_zoho_weekly_prefill(
     )
 
     access_token = await _get_valid_access_token(db, connection)
+    week_start = _week_start_monday(week_ending)
+    week_end = _week_ending_sunday(week_ending)
     invoices = await _fetch_all_invoices(
         access_token=access_token,
         organization_id=organization_id,
     )
-
-    week_start = _week_start_monday(week_ending)
-    week_end = _week_ending_sunday(week_ending)
+    invoices = await _fetch_invoice_details(
+        access_token=access_token,
+        organization_id=organization_id,
+        invoices=_filter_invoices_for_range(
+            invoices,
+            date_from=week_start,
+            date_to=week_end,
+        ),
+    )
 
     weekly_totals = _build_weekly_totals(
         invoices=invoices,
@@ -405,18 +479,28 @@ async def sync_zoho_invoices_to_weekly_reports(
         access_token=access_token,
         organization_id=organization_id,
     )
+    invoices_for_range = _filter_invoices_for_range(
+        invoices,
+        date_from=resolved_from,
+        date_to=resolved_to,
+    )
+    detailed_invoices = await _fetch_invoice_details(
+        access_token=access_token,
+        organization_id=organization_id,
+        invoices=invoices_for_range,
+    )
 
     ledger_counts = persist_sales_ledger(
         db,
         tenant_id=tenant_id,
         company_id=company_id,
-        invoices=invoices,
+        invoices=detailed_invoices,
         start_date=resolved_from,
         end_date=resolved_to,
     )
 
     weekly_totals = _build_weekly_totals(
-        invoices=invoices,
+        invoices=detailed_invoices,
         date_from=resolved_from,
         date_to=resolved_to,
     )

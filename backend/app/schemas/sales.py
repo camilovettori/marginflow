@@ -88,6 +88,7 @@ class SalesAnalyticsResponse(BaseModel):
     connection: SalesConnectionState
     total_sales_inc_vat: float
     total_sales_ex_vat: float
+    vat_collected: float
     invoice_count: int
     active_customers: int
     average_order_value: float
@@ -96,6 +97,54 @@ class SalesAnalyticsResponse(BaseModel):
     top_items: List[SalesItemRow]
     invoice_trend: List[SalesTrendPoint]
     recent_invoices: List[SalesInvoiceRow]
+
+    @field_serializer("start_date", "end_date")
+    def _ser_dates(self, v: date) -> str:
+        return v.isoformat()
+
+
+class SalesItemWithShare(BaseModel):
+    rank: int
+    item_id: Optional[str] = None
+    item_name: str
+    quantity_sold: float
+    revenue_ex_vat: float
+    revenue_inc_vat: float
+    revenue_share: float
+    invoice_count: int
+
+
+class SalesItemsListResponse(BaseModel):
+    company_id: UUID
+    range_key: str
+    range_label: str
+    start_date: date
+    end_date: date
+    total_items: int
+    total_revenue_ex_vat: float
+    items: List[SalesItemWithShare]
+
+    @field_serializer("company_id")
+    def _ser_company_id(self, v: UUID) -> str:
+        return str(v)
+
+    @field_serializer("start_date", "end_date")
+    def _ser_dates(self, v: date) -> str:
+        return v.isoformat()
+
+
+class SalesCustomersListResponse(BaseModel):
+    company_id: UUID
+    range_key: str
+    range_label: str
+    start_date: date
+    end_date: date
+    total_customers: int
+    customers: List[SalesCustomerRow]
+
+    @field_serializer("company_id")
+    def _ser_company_id(self, v: UUID) -> str:
+        return str(v)
 
     @field_serializer("start_date", "end_date")
     def _ser_dates(self, v: date) -> str:

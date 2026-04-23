@@ -9,6 +9,7 @@ from uuid import UUID
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.models.company import Company
@@ -40,6 +41,8 @@ RANGE_DAYS = {
     "6m": 180,
     "12m": 365,
 }
+
+UNDEFINED_TABLE_SQLSTATE = "42P01"
 
 
 def _to_decimal(value: object | None) -> Decimal:
@@ -272,6 +275,70 @@ def _invoice_date_filter(range_key: str) -> date:
     return date.today() - timedelta(days=days - 1)
 
 
+def _handle_sales_programming_error(exc: ProgrammingError) -> None:
+    if getattr(getattr(exc, "orig", None), "pgcode", None) == UNDEFINED_TABLE_SQLSTATE:
+        raise HTTPException(
+            status_code=503,
+            detail="Sales ledger tables are missing. Run alembic upgrade heads.",
+        ) from exc
+
+
+def _build_customer_lookup(invoices: Iterable[ZohoSalesInvoice]) -> dict[str, dict]:
+    customers: dict[str, dict] = {}
+
+    for invoice in invoices:
+        customer_key = str(invoice.customer_id or invoice.customer_name or "unknown")
+        customer_label = invoice.customer_name or invoice.customer_id or "Unknown customer"
+        customer = customers.setdefault(
+            customer_key,
+            {
+                "customer_id": invoice.customer_id,
+                "customer_name": customer_label,
+                "total_spend_inc_vat": 0.0,
+                "total_spend_ex_vat": 0.0,
+                "invoice_numbers": set(),
+                "last_purchase_date": invoice.invoice_date,
+                "items": defaultdict(
+                    lambda: {
+                        "item_id": None,
+                        "item_name": "",
+                        "quantity": 0.0,
+                        "revenue_ex_vat": 0.0,
+                        "revenue_inc_vat": 0.0,
+                        "invoice_numbers": set(),
+                    }
+                ),
+            },
+        )
+        customer["total_spend_inc_vat"] += float(invoice.total_inc_vat or 0)
+        customer["total_spend_ex_vat"] += float(invoice.total_ex_vat or 0)
+        customer["invoice_numbers"].add(invoice.invoice_number or invoice.zoho_invoice_id)
+        customer["last_purchase_date"] = max(customer["last_purchase_date"], invoice.invoice_date)
+
+    return customers
+
+
+def _attach_customer_items(
+    customers: dict[str, dict],
+    invoice_items: Iterable[tuple[ZohoSalesInvoiceItem, ZohoSalesInvoice]],
+) -> None:
+    for invoice_item, invoice in invoice_items:
+        customer_key = str(invoice.customer_id or invoice.customer_name or "unknown")
+        customer = customers.get(customer_key)
+        if not customer:
+            continue
+
+        item_name = invoice_item.item_name or "Item"
+        item_key = item_name.lower()
+        item_bucket = customer["items"][item_key]
+        item_bucket["item_id"] = item_bucket["item_id"] or invoice_item.item_id
+        item_bucket["item_name"] = item_name
+        item_bucket["quantity"] += float(invoice_item.quantity or 0)
+        item_bucket["revenue_ex_vat"] += float(invoice_item.line_total_ex_vat or 0)
+        item_bucket["revenue_inc_vat"] += float(invoice_item.line_total_inc_vat or 0)
+        item_bucket["invoice_numbers"].add(invoice.invoice_number or invoice.zoho_invoice_id)
+
+
 def persist_sales_ledger(
     db: Session,
     *,
@@ -458,52 +525,56 @@ def get_sales_analytics_data(
     range_key: str,
     customer_id: str | None = None,
 ) -> dict:
-    company = (
-        db.query(Company)
-        .filter(Company.id == company_id, Company.tenant_id == tenant_id)
-        .first()
-    )
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-
-    connection = (
-        db.query(ZohoConnection)
-        .filter(
-            ZohoConnection.company_id == company_id,
-            ZohoConnection.tenant_id == tenant_id,
+    try:
+        company = (
+            db.query(Company)
+            .filter(Company.id == company_id, Company.tenant_id == tenant_id)
+            .first()
         )
-        .first()
-    )
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
 
-    start_date = _invoice_date_filter(range_key)
-    end_date = date.today()
-
-    invoices = (
-        db.execute(
-            select(ZohoSalesInvoice).where(
-                ZohoSalesInvoice.tenant_id == tenant_id,
-                ZohoSalesInvoice.company_id == company_id,
-                ZohoSalesInvoice.invoice_date >= start_date,
-                ZohoSalesInvoice.invoice_date <= end_date,
-            ).order_by(ZohoSalesInvoice.invoice_date.desc())
-        )
-        .scalars()
-        .all()
-    )
-
-    invoice_items = (
-        db.execute(
-            select(ZohoSalesInvoiceItem, ZohoSalesInvoice)
-            .join(ZohoSalesInvoice, ZohoSalesInvoice.id == ZohoSalesInvoiceItem.zoho_sales_invoice_id)
-            .where(
-                ZohoSalesInvoiceItem.tenant_id == tenant_id,
-                ZohoSalesInvoiceItem.company_id == company_id,
-                ZohoSalesInvoice.invoice_date >= start_date,
-                ZohoSalesInvoice.invoice_date <= end_date,
+        connection = (
+            db.query(ZohoConnection)
+            .filter(
+                ZohoConnection.company_id == company_id,
+                ZohoConnection.tenant_id == tenant_id,
             )
+            .first()
         )
-        .all()
-    )
+
+        start_date = _invoice_date_filter(range_key)
+        end_date = date.today()
+
+        invoices = (
+            db.execute(
+                select(ZohoSalesInvoice).where(
+                    ZohoSalesInvoice.tenant_id == tenant_id,
+                    ZohoSalesInvoice.company_id == company_id,
+                    ZohoSalesInvoice.invoice_date >= start_date,
+                    ZohoSalesInvoice.invoice_date <= end_date,
+                ).order_by(ZohoSalesInvoice.invoice_date.desc())
+            )
+            .scalars()
+            .all()
+        )
+
+        invoice_items = (
+            db.execute(
+                select(ZohoSalesInvoiceItem, ZohoSalesInvoice)
+                .join(ZohoSalesInvoice, ZohoSalesInvoice.id == ZohoSalesInvoiceItem.zoho_sales_invoice_id)
+                .where(
+                    ZohoSalesInvoiceItem.tenant_id == tenant_id,
+                    ZohoSalesInvoiceItem.company_id == company_id,
+                    ZohoSalesInvoice.invoice_date >= start_date,
+                    ZohoSalesInvoice.invoice_date <= end_date,
+                )
+            )
+            .all()
+        )
+    except ProgrammingError as exc:
+        _handle_sales_programming_error(exc)
+        raise
 
     total_sales_inc_vat = sum(float(invoice.total_inc_vat or 0) for invoice in invoices)
     total_sales_ex_vat = sum(float(invoice.total_ex_vat or 0) for invoice in invoices)
@@ -533,46 +604,12 @@ def get_sales_analytics_data(
         for period, values in sorted(grouped_by_day.items())
     ]
 
-    customers: dict[str, dict] = {}
+    customers = _build_customer_lookup(invoices)
+    _attach_customer_items(customers, invoice_items)
     item_lookup: dict[str, dict] = {}
     for invoice_item, invoice in invoice_items:
-        customer_key = str(invoice.customer_id or invoice.customer_name or "unknown")
-        customer_label = invoice.customer_name or invoice.customer_id or "Unknown customer"
-        customer = customers.setdefault(
-            customer_key,
-            {
-                "customer_id": invoice.customer_id,
-                "customer_name": customer_label,
-                "total_spend_inc_vat": 0.0,
-                "total_spend_ex_vat": 0.0,
-                "invoice_numbers": set(),
-                "last_purchase_date": invoice.invoice_date,
-                "items": defaultdict(
-                    lambda: {
-                        "item_id": None,
-                        "item_name": "",
-                        "quantity": 0.0,
-                        "revenue_ex_vat": 0.0,
-                        "revenue_inc_vat": 0.0,
-                        "invoice_numbers": set(),
-                    }
-                ),
-            },
-        )
-        customer["total_spend_inc_vat"] += float(invoice.total_inc_vat or 0)
-        customer["total_spend_ex_vat"] += float(invoice.total_ex_vat or 0)
-        customer["invoice_numbers"].add(invoice.invoice_number or invoice.zoho_invoice_id)
-        customer["last_purchase_date"] = max(customer["last_purchase_date"], invoice.invoice_date)
-
         item_name = invoice_item.item_name or "Item"
         item_key = item_name.lower()
-        item_bucket = customer["items"][item_key]
-        item_bucket["item_id"] = item_bucket["item_id"] or invoice_item.item_id
-        item_bucket["item_name"] = item_name
-        item_bucket["quantity"] += float(invoice_item.quantity or 0)
-        item_bucket["revenue_ex_vat"] += float(invoice_item.line_total_ex_vat or 0)
-        item_bucket["revenue_inc_vat"] += float(invoice_item.line_total_inc_vat or 0)
-        item_bucket["invoice_numbers"].add(invoice.invoice_number or invoice.zoho_invoice_id)
 
         overall_item = item_lookup.setdefault(
             item_key,
@@ -669,6 +706,8 @@ def get_sales_analytics_data(
         for invoice in invoices[:20]
     ]
 
+    vat_collected = round(total_sales_inc_vat - total_sales_ex_vat, 2)
+
     return {
         "company_id": company_id,
         "company_name": company.name,
@@ -685,6 +724,7 @@ def get_sales_analytics_data(
         },
         "total_sales_inc_vat": round(total_sales_inc_vat, 2),
         "total_sales_ex_vat": round(total_sales_ex_vat, 2),
+        "vat_collected": vat_collected,
         "invoice_count": invoice_count,
         "active_customers": active_customers,
         "average_order_value": round(average_order_value, 2),
@@ -693,4 +733,180 @@ def get_sales_analytics_data(
         "top_items": top_item_rows,
         "invoice_trend": trend,
         "recent_invoices": recent_invoices,
+    }
+
+
+def get_items_analytics_data(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    company_id: UUID,
+    range_key: str,
+    sort: str = "revenue",
+    limit: int = 25,
+) -> dict:
+    try:
+        company = (
+            db.query(Company)
+            .filter(Company.id == company_id, Company.tenant_id == tenant_id)
+            .first()
+        )
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        start_date = _invoice_date_filter(range_key)
+        end_date = date.today()
+
+        invoice_items = (
+            db.execute(
+                select(ZohoSalesInvoiceItem, ZohoSalesInvoice)
+                .join(ZohoSalesInvoice, ZohoSalesInvoice.id == ZohoSalesInvoiceItem.zoho_sales_invoice_id)
+                .where(
+                    ZohoSalesInvoiceItem.tenant_id == tenant_id,
+                    ZohoSalesInvoiceItem.company_id == company_id,
+                    ZohoSalesInvoice.invoice_date >= start_date,
+                    ZohoSalesInvoice.invoice_date <= end_date,
+                )
+            )
+            .all()
+        )
+    except ProgrammingError as exc:
+        _handle_sales_programming_error(exc)
+        raise
+
+    item_lookup: dict[str, dict] = {}
+    for invoice_item, invoice in invoice_items:
+        item_name = invoice_item.item_name or "Item"
+        item_key = item_name.lower()
+        bucket = item_lookup.setdefault(
+            item_key,
+            {
+                "item_id": invoice_item.item_id,
+                "item_name": item_name,
+                "quantity_sold": 0.0,
+                "revenue_ex_vat": 0.0,
+                "revenue_inc_vat": 0.0,
+                "invoice_numbers": set(),
+            },
+        )
+        bucket["quantity_sold"] += float(invoice_item.quantity or 0)
+        bucket["revenue_ex_vat"] += float(invoice_item.line_total_ex_vat or 0)
+        bucket["revenue_inc_vat"] += float(invoice_item.line_total_inc_vat or 0)
+        bucket["invoice_numbers"].add(invoice.invoice_number or invoice.zoho_invoice_id)
+
+    sort_key = "quantity_sold" if sort == "qty" else "revenue_ex_vat"
+    sorted_items = sorted(item_lookup.values(), key=lambda x: x[sort_key], reverse=True)
+    total_revenue = sum(item["revenue_ex_vat"] for item in item_lookup.values())
+
+    items = [
+        {
+            "rank": idx,
+            "item_id": item["item_id"],
+            "item_name": item["item_name"],
+            "quantity_sold": round(item["quantity_sold"], 2),
+            "revenue_ex_vat": round(item["revenue_ex_vat"], 2),
+            "revenue_inc_vat": round(item["revenue_inc_vat"], 2),
+            "revenue_share": round(item["revenue_ex_vat"] / total_revenue, 4) if total_revenue > 0 else 0.0,
+            "invoice_count": len(item["invoice_numbers"]),
+        }
+        for idx, item in enumerate(sorted_items[:limit], start=1)
+    ]
+
+    return {
+        "company_id": company_id,
+        "range_key": range_key,
+        "range_label": RANGE_LABELS.get(range_key, RANGE_LABELS["4w"]),
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_items": len(sorted_items),
+        "total_revenue_ex_vat": round(total_revenue, 2),
+        "items": items,
+    }
+
+
+def get_customers_analytics_data(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    company_id: UUID,
+    range_key: str,
+    sort: str = "spend",
+    limit: int = 25,
+) -> dict:
+    try:
+        company = (
+            db.query(Company)
+            .filter(Company.id == company_id, Company.tenant_id == tenant_id)
+            .first()
+        )
+        if not company:
+            raise HTTPException(status_code=404, detail="Company not found")
+
+        start_date = _invoice_date_filter(range_key)
+        end_date = date.today()
+
+        invoice_items = (
+            db.execute(
+                select(ZohoSalesInvoiceItem, ZohoSalesInvoice)
+                .join(ZohoSalesInvoice, ZohoSalesInvoice.id == ZohoSalesInvoiceItem.zoho_sales_invoice_id)
+                .where(
+                    ZohoSalesInvoiceItem.tenant_id == tenant_id,
+                    ZohoSalesInvoiceItem.company_id == company_id,
+                    ZohoSalesInvoice.invoice_date >= start_date,
+                    ZohoSalesInvoice.invoice_date <= end_date,
+                )
+            )
+            .all()
+        )
+    except ProgrammingError as exc:
+        _handle_sales_programming_error(exc)
+        raise
+
+    invoice_map: dict[str, ZohoSalesInvoice] = {}
+    for _invoice_item, invoice in invoice_items:
+        invoice_key = str(invoice.id)
+        if invoice_key not in invoice_map:
+            invoice_map[invoice_key] = invoice
+
+    customers = _build_customer_lookup(invoice_map.values())
+    _attach_customer_items(customers, invoice_items)
+
+    sort_key = "invoice_count" if sort == "invoices" else "total_spend_ex_vat"
+    sorted_customers = sorted(customers.values(), key=lambda x: x[sort_key] if sort != "invoices" else len(x["invoice_numbers"]), reverse=True)
+
+    customer_rows = []
+    for idx, customer in enumerate(sorted_customers[:limit], start=1):
+        item_rows = sorted(customer["items"].values(), key=lambda r: r["revenue_ex_vat"], reverse=True)[:4]
+        customer_rows.append(
+            {
+                "rank": idx,
+                "customer_id": customer["customer_id"],
+                "customer_name": customer["customer_name"],
+                "total_spend_inc_vat": round(customer["total_spend_inc_vat"], 2),
+                "total_spend_ex_vat": round(customer["total_spend_ex_vat"], 2),
+                "invoice_count": len(customer["invoice_numbers"]),
+                "average_order_value": round(customer["total_spend_ex_vat"] / len(customer["invoice_numbers"]) if customer["invoice_numbers"] else 0.0, 2),
+                "last_purchase_date": customer["last_purchase_date"],
+                "items": [
+                    {
+                        "item_id": r.get("item_id"),
+                        "item_name": r.get("item_name") or "Item",
+                        "quantity": round(r.get("quantity", 0.0), 2),
+                        "revenue_ex_vat": round(r.get("revenue_ex_vat", 0.0), 2),
+                        "revenue_inc_vat": round(r.get("revenue_inc_vat", 0.0), 2),
+                        "invoice_count": len(r.get("invoice_numbers", set())),
+                    }
+                    for r in item_rows
+                ],
+            }
+        )
+
+    return {
+        "company_id": company_id,
+        "range_key": range_key,
+        "range_label": RANGE_LABELS.get(range_key, RANGE_LABELS["4w"]),
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_customers": len(sorted_customers),
+        "customers": customer_rows,
     }
