@@ -290,7 +290,7 @@ export default function CompanyWeeklyReportsPage() {
           companyName={company?.name ?? "Selected Company"}
           companyMeta={
             uiSummary.total_reports > 0
-              ? `${uiSummary.total_reports} reports Â· ${uiSummary.imported_reports} imported`
+              ? `${uiSummary.total_reports} weekly reports`
               : "No weekly reports yet. Import or create the first report to unlock the portfolio view."
           }
           companyBadge={
@@ -326,52 +326,6 @@ export default function CompanyWeeklyReportsPage() {
           }
         />
 
-        <div className="hidden mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="mb-4">
-                <Link
-                  href={`/companies/${companyId}`}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50"
-                >
-                  <ArrowLeft size={16} />
-                  Back to Company
-                </Link>
-              </div>
-
-              <h2 className="text-5xl font-semibold tracking-tight text-zinc-950">
-                {company?.name ?? "Selected Company"}
-              </h2>
-              <p className="mt-3 max-w-3xl text-base text-zinc-600">
-                Weekly financial reports, historical performance, and detailed report workspace for this company.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 self-start">
-              {company?.sales_source === "zoho" && (
-                <button
-                  onClick={() => {
-                    setSyncError(null)
-                    setSyncMessage(null)
-                    setShowSyncModal(true)
-                  }}
-                  disabled={syncingZoho}
-                  className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <RefreshCw size={16} className={syncingZoho ? "animate-spin" : ""} />
-                  {syncingZoho ? "Syncing..." : "Sync Zoho Sales"}
-                </button>
-              )}
-
-              <Link
-                href={`/companies/${companyId}/new`}
-                className="flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
-              >
-                <Plus size={16} />
-                Add Weekly Report
-              </Link>
-            </div>
-          </div>
-
           {error && (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
               {error}
@@ -396,52 +350,41 @@ export default function CompanyWeeklyReportsPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-900">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-900">
                     <FileText size={18} />
                   </div>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Total Reports</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 md:text-[2.35rem]">
+                  <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Total Reports</p>
+                  <p className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-950 md:text-[2rem]">
                     {uiSummary.total_reports}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-sky-700 shadow-sm">
-                    <RefreshCw size={18} />
-                  </div>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Imported</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 md:text-[2.35rem]">
-                    {uiSummary.imported_reports}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
                     <Wallet size={18} />
                   </div>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Sales ex VAT</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 md:text-[2.35rem]">
+                  <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Sales ex VAT</p>
+                  <p className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-950 md:text-[2rem]">
                     {fmtMoney(uiSummary.total_sales_ex_vat)}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
                     <TrendingUp size={18} />
                   </div>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Net Profit</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 md:text-[2.35rem]">
+                  <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Net Profit</p>
+                  <p className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-950 md:text-[2rem]">
                     {fmtMoney(uiSummary.total_net_profit)}
                   </p>
                 </div>
               </div>
-
               <div className="mt-8 rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-                <div className="flex flex-col gap-4 border-b border-zinc-100 px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col gap-3 border-b border-zinc-100 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h3 className="text-2xl font-semibold tracking-tight text-zinc-950 md:text-[1.9rem]">
+                    <h3 className="text-xl font-semibold tracking-tight text-zinc-950 md:text-[1.55rem]">
                       Report History
                     </h3>
                     <p className="mt-1 text-sm text-zinc-500">
@@ -535,7 +478,7 @@ export default function CompanyWeeklyReportsPage() {
                                 isSelected ? "bg-zinc-50/80" : ""
                               }`}
                             >
-                              <td className="px-6 py-4">
+                              <td className="px-4 py-3">
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
@@ -620,7 +563,7 @@ export default function CompanyWeeklyReportsPage() {
                                 </span>
                               </td>
 
-                              <td className="px-6 py-4 text-right">
+                              <td className="px-4 py-3 text-right">
                                 <button
                                   onClick={() =>
                                     router.push(`/companies/${companyId}/reports/${report.id}`)

@@ -121,11 +121,11 @@ function SectionCard({
   return (
     <section
       className={cn(
-        "rounded-[30px] border border-black/5 bg-white/95 p-6 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.04)] backdrop-blur-sm",
+        "rounded-[24px] border border-black/5 bg-white/95 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_24px_rgba(15,23,42,0.03)] backdrop-blur-sm",
         className
       )}
     >
-      <div className="mb-5 flex items-start gap-3">
+      <div className="mb-4 flex items-start gap-3">
         {icon ? (
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
             {icon}
@@ -155,7 +155,7 @@ function SubCard({
 }) {
   return (
     <div className="rounded-[24px] border border-black/5 bg-zinc-50/70 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-3 flex items-center gap-2">
         {icon ? <span className="text-zinc-500">{icon}</span> : null}
         <h4 className="text-sm font-semibold text-zinc-950">{title}</h4>
       </div>
@@ -179,13 +179,13 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+        className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
       />
     </div>
   )
@@ -206,7 +206,7 @@ function MoneyField({
 }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</label>
       <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
         <span className="mr-2 text-sm text-zinc-500">â‚¬</span>
         <input
@@ -237,7 +237,7 @@ function PercentField({
 }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</label>
       <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
         <input
           type="number"
@@ -1228,7 +1228,7 @@ export default function WeeklyReportDetailPage() {
             </div>
 
             <div className="mb-6">
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+              <label className="mb-1.5 block text-sm font-medium text-zinc-700">
                 Recipient Email
               </label>
               <input
@@ -1240,7 +1240,7 @@ export default function WeeklyReportDetailPage() {
                 }}
                 placeholder="e.g. owner@company.com"
                 autoFocus
-                className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
               />
             </div>
 
@@ -1386,19 +1386,19 @@ export default function WeeklyReportDetailPage() {
           </div>
 
           {error ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
               {error}
             </div>
           ) : null}
 
           {successMessage ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
               {successMessage}
             </div>
           ) : null}
         </div>
 
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <KPI
             icon={<Wallet size={18} />}
             label="Sales ex VAT"
@@ -1449,7 +1449,7 @@ export default function WeeklyReportDetailPage() {
                       onChange={(value) => setForm((prev) => ({ ...prev, week_ending: value }))}
                     />
 
-                    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
+                    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5">
                       <p className="text-sm font-medium text-zinc-700">ISO Week</p>
                       <p className="mt-2 text-sm text-zinc-500">
                         {isoWeekInfo
@@ -1604,7 +1604,7 @@ export default function WeeklyReportDetailPage() {
                     rows={5}
                     value={form.notes || ""}
                     onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                    className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
                     placeholder="Weekly notes, anomalies, events or operational observations..."
                   />
                 </SubCard>
@@ -1616,13 +1616,13 @@ export default function WeeklyReportDetailPage() {
               description="Categorized financial lines for a cleaner, more scalable weekly structure."
               icon={<Layers3 size={18} />}
             >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <div className="relative rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                   <div className="absolute right-3 top-3">
                     <TooltipIcon definition="Number of categorized P&L entries attached to this report. More lines = more detailed financial visibility." />
                   </div>
-                  <p className="text-sm font-medium text-zinc-500">Breakdown Lines</p>
-                  <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
+                  <p className="text-xs font-medium text-zinc-500">Breakdown Lines</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">
                     {breakdownLineCount}
                   </p>
                   <p className="mt-2 text-xs text-zinc-500">Categorized entries in this report</p>
@@ -1632,8 +1632,8 @@ export default function WeeklyReportDetailPage() {
                   <div className="absolute right-3 top-3">
                     <TooltipIcon definition="Sum of all categorized P&L line items in this report. Compare against the core report totals to check reconciliation." />
                   </div>
-                  <p className="text-sm font-medium text-zinc-500">Breakdown Total</p>
-                  <p className="mt-3 text-4xl font-semibold tracking-tight text-zinc-950">
+                  <p className="text-xs font-medium text-zinc-500">Breakdown Total</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">
                     {formatMoney(breakdownTotal)}
                   </p>
                   <p className="mt-2 text-xs text-zinc-500">Sum of all categorized lines</p>
@@ -1643,8 +1643,8 @@ export default function WeeklyReportDetailPage() {
                   <div className="absolute right-3 top-3">
                     <TooltipIcon definition="The highest-value categorized P&L line item in this report â€” the single largest cost or revenue driver." />
                   </div>
-                  <p className="text-sm font-medium text-zinc-500">Top Line</p>
-                  <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">
+                  <p className="text-xs font-medium text-zinc-500">Top Line</p>
+                  <p className="mt-2 text-xl font-semibold tracking-tight text-zinc-950">
                     {topBreakdownItem?.category_name || "No items yet"}
                   </p>
                   <p className="mt-2 text-xs text-zinc-500">
@@ -1655,24 +1655,24 @@ export default function WeeklyReportDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-6 rounded-[24px] border border-zinc-200 bg-zinc-50/70 p-5">
+              <div className="mt-5 rounded-[20px] border border-zinc-200 bg-zinc-50/70 p-4">
                 <div className="mb-4">
-                  <h4 className="text-base font-semibold text-zinc-950">Add Breakdown Item</h4>
+                  <h4 className="text-sm font-semibold text-zinc-950">Add Breakdown Item</h4>
                   <p className="mt-1 text-sm text-zinc-500">
                     Use mapped categories like Wages, Holiday Pay and Food Purchases to feed the
                     main report automatically.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.2fr_0.8fr]">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.2fr_0.8fr]">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-zinc-700">Category</label>
+                    <label className="mb-1.5 block text-sm font-medium text-zinc-700">Category</label>
                     <select
                       value={newItem.category_id}
                       onChange={(e) =>
                         setNewItem((prev) => ({ ...prev, category_id: e.target.value }))
                       }
-                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
                     >
                       <option value="">Select category</option>
                       {categories.map((category) => (
@@ -1713,7 +1713,7 @@ export default function WeeklyReportDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-5">
+              <div className="mt-4">
                 {!breakdown || breakdown.items.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-sm text-zinc-500">
                     No breakdown items added to this report yet.
@@ -1787,7 +1787,7 @@ export default function WeeklyReportDetailPage() {
             </SectionCard>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             <SectionCard
               title="Margin Snapshot"
               description="The financial story of this week, at a glance."
@@ -1860,22 +1860,6 @@ export default function WeeklyReportDetailPage() {
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="Breakdown Summary"
-              description="Context and grouped totals in one place."
-              icon={<Layers3 size={18} />}
-            >
-              <div className="space-y-3">
-                <ExecutiveRow label="Week" value={isoWeekInfo ? String(isoWeekInfo.isoWeek) : "-"} />
-                <ExecutiveRow label="Year" value={isoWeekInfo ? String(isoWeekInfo.isoYear) : "-"} />
-                <ExecutiveRow label="Week Start" value={isoWeekInfo ? formatDateLong(isoWeekInfo.start) : "-"} />
-                <ExecutiveRow label="Week End" value={isoWeekInfo ? formatDateLong(isoWeekInfo.end) : "-"} />
-
-                {groupedSummaryRows.map((row) => (
-                  <ExecutiveRow key={row.label} label={row.label} value={formatMoney(row.value)} />
-                ))}
-              </div>
-            </SectionCard>
           </div>
         </div>
 

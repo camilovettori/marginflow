@@ -48,6 +48,7 @@ import {
 } from "lucide-react"
 
 type MetricTone = "default" | "emerald" | "amber" | "rose" | "blue"
+type AnalyticsSection = "overview" | "revenue" | "margin" | "budget" | "operations"
 
 const PERIOD_OPTIONS: Array<{ value: AnalyticsPeriodKey; label: string }> = [
   { value: "last-week", label: "Last week" },
@@ -148,7 +149,7 @@ function MetricCard({
   icon?: ReactNode
 }) {
   return (
-    <div className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{title}</p>
@@ -162,19 +163,48 @@ function MetricCard({
   )
 }
 
+function CompactMetricCard({
+  title,
+  value,
+  subtitle,
+  tone = "default",
+}: {
+  title: string
+  value: string
+  subtitle: string
+  tone?: MetricTone
+}) {
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.025)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{title}</p>
+          <p className="mt-1.5 text-lg font-semibold tracking-tight text-zinc-950">{value}</p>
+        </div>
+        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${sectionIconTone(tone)}`}>
+          KPI
+        </span>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-zinc-500">{subtitle}</p>
+    </div>
+  )
+}
+
 function SectionCard({
   title,
   subtitle,
   children,
   action,
+  className,
 }: {
   title: string
   subtitle?: string
   children: ReactNode
   action?: ReactNode
+  className?: string
 }) {
   return (
-    <div className="rounded-[32px] border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+    <div className={`rounded-[32px] border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${className ?? ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-zinc-100 px-6 py-5">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-zinc-950 md:text-[1.95rem]">
@@ -202,29 +232,23 @@ function InsightCard({
   }
 
   return (
-    <div className={`rounded-[24px] border p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${toneMap[insight.severity]}`}>
+    <div className={`rounded-2xl border p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${toneMap[insight.severity]}`}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-70">{insight.severity}</p>
-        <span className="rounded-full border border-current/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">{insight.severity}</p>
+        <span className="rounded-full border border-current/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]">
           Insight
         </span>
       </div>
-      <h3 className="mt-3 text-lg font-semibold tracking-tight">{insight.title}</h3>
-      <p className="mt-2 text-sm leading-6 opacity-90">{insight.summary}</p>
-      <div className="mt-4 space-y-3 text-sm leading-6">
-        <div>
-          <p className="font-semibold">Why it matters</p>
-          <p className="opacity-90">{insight.why_it_matters}</p>
-        </div>
-        <div>
-          <p className="font-semibold">Recommended action</p>
-          <p className="opacity-90">{insight.recommended_action}</p>
-        </div>
+      <h3 className="mt-3 text-base font-semibold tracking-tight">{insight.title}</h3>
+      <p className="mt-1.5 text-sm leading-6 opacity-90">{insight.summary}</p>
+      <div className="mt-3 rounded-2xl border border-current/10 bg-white/40 px-3 py-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">Recommended action</p>
+        <p className="mt-1 text-sm leading-6 opacity-90">{insight.recommended_action}</p>
       </div>
       {insight.evidence.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {insight.evidence.map((line) => (
-            <span key={line} className="rounded-full border border-current/15 px-3 py-1 text-xs font-medium">
+        <div className="mt-3 flex flex-wrap gap-2">
+          {insight.evidence.slice(0, 2).map((line) => (
+            <span key={line} className="rounded-full border border-current/15 px-2.5 py-1 text-[11px] font-medium">
               {line}
             </span>
           ))}
@@ -242,9 +266,9 @@ function EmptyState({
   body: string
 }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50/70 p-6 text-sm text-zinc-500">
+    <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/70 p-4 text-sm text-zinc-500">
       <p className="font-semibold text-zinc-800">{title}</p>
-      <p className="mt-2 leading-6">{body}</p>
+      <p className="mt-1.5 leading-6">{body}</p>
     </div>
   )
 }
@@ -425,6 +449,7 @@ export default function CompanyAnalyticsPage() {
   const [specificEndDraft, setSpecificEndDraft] = useState(() => formatDateInput(startOfToday()))
   const [appliedSpecificStart, setAppliedSpecificStart] = useState(() => formatDateInput(daysAgo(27)))
   const [appliedSpecificEnd, setAppliedSpecificEnd] = useState(() => formatDateInput(startOfToday()))
+  const [activeSection, setActiveSection] = useState<AnalyticsSection>("overview")
   const [analytics, setAnalytics] = useState<CompanyAnalyticsResponse | null>(null)
   const [budgetPlan, setBudgetPlan] = useState<BudgetPlan | null>(null)
   const [loading, setLoading] = useState(true)
@@ -518,6 +543,18 @@ export default function CompanyAnalyticsPage() {
   }, [budgetPlan, selectedWindow])
 
   const displayMetrics = useMemo(() => buildKpiTiles(analytics, budgetSummary), [analytics, budgetSummary])
+  const primaryMetricKeys = useMemo(
+    () => new Set(["revenue_ex_vat", "net_profit", "net_margin_pct", "food_cost_pct", "labour_pct"]),
+    []
+  )
+  const primaryMetrics = useMemo(
+    () => displayMetrics.filter((metric) => primaryMetricKeys.has(metric.key)).slice(0, 5),
+    [displayMetrics, primaryMetricKeys]
+  )
+  const secondaryMetrics = useMemo(
+    () => displayMetrics.filter((metric) => !primaryMetricKeys.has(metric.key)),
+    [displayMetrics, primaryMetricKeys]
+  )
 
   const revenueTrend = analytics?.sales_trend ?? []
   const marginTrend = analytics?.weekly_trend ?? []
@@ -648,19 +685,53 @@ export default function CompanyAnalyticsPage() {
     return insights
   }, [analytics, budgetSummary])
 
+  const dataQualityInsights = useMemo(() => {
+    if (!analytics) return []
+
+    const items: CompanyAnalyticsResponse["insights"] = []
+    const purchaseCoverage = analytics.coverage.purchase_lines ?? 0
+    const costCategories = topCostCategories.length
+
+    if (purchaseCoverage > 0 && costCategories === 0) {
+      items.push({
+        key: "uncategorised-costs",
+        severity: "warning",
+        title: "Cost categorisation is too thin",
+        summary: "Purchase data exists, but the cost-side analysis is still too sparse to produce strong margin signals.",
+        why_it_matters: "Without cost categorisation, margin pressure can hide behind aggregated spend lines.",
+        recommended_action: "Review purchase mapping and category assignment so spend rolls into meaningful cost groups.",
+        evidence: [`Purchase lines: ${formatCount(purchaseCoverage)}`, "Top cost categories: 0"],
+      })
+    }
+
+    return items
+  }, [analytics, topCostCategories.length])
+
   const combinedInsights = useMemo(
-    () => [...(analytics?.insights ?? []), ...budgetInsights],
-    [analytics?.insights, budgetInsights]
+    () => [...dataQualityInsights, ...(analytics?.insights ?? []), ...budgetInsights],
+    [analytics?.insights, budgetInsights, dataQualityInsights]
   )
+
+  const visibleInsights = useMemo(() => combinedInsights.slice(0, 6), [combinedInsights])
+  const bestPeriod = analytics?.highlights.find((item) => item.direction === "best") ?? analytics?.highlights[0] ?? null
+  const weakestPeriod = analytics?.highlights.find((item) => item.direction === "worst") ?? weakWeeks[0] ?? null
 
   const selectedRangeLabel = useMemo(() => {
     if (!selectedWindow.valid) return "Invalid range"
     return `${selectedWindow.label} - ${formatDateLong(selectedWindow.start)} -> ${formatDateLong(selectedWindow.end)}`
   }, [selectedWindow])
 
+  const sectionTabs: Array<{ key: AnalyticsSection; label: string }> = [
+    { key: "overview", label: "Overview" },
+    { key: "revenue", label: "Revenue" },
+    { key: "margin", label: "Margin" },
+    { key: "budget", label: "Budget / Forecast" },
+    { key: "operations", label: "Operations" },
+  ]
+
   return (
     <div className="space-y-8">
-      <div className="rounded-[36px] border border-zinc-200 bg-[radial-gradient(circle_at_top_left,rgba(24,24,27,0.05),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,250,250,0.95))] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+      <div className="space-y-4">
         <WorkspacePageHeader
           label="Company intelligence"
           title="Analytics"
@@ -769,17 +840,17 @@ export default function CompanyAnalyticsPage() {
       ) : null}
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
-          {[1, 2, 3, 4].map((item) => (
-            <div key={item} className="h-36 animate-pulse rounded-[28px] border border-zinc-200 bg-white" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-5">
+          {[1, 2, 3, 4, 5].map((item) => (
+            <div key={item} className="h-28 animate-pulse rounded-2xl border border-zinc-200 bg-white" />
           ))}
         </div>
       ) : null}
 
       {!loading && analytics ? (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
-            {displayMetrics.map((metric) => (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-5">
+            {primaryMetrics.map((metric) => (
               <MetricCard
                 key={metric.key}
                 title={metric.label}
@@ -792,13 +863,20 @@ export default function CompanyAnalyticsPage() {
             ))}
           </div>
 
-          <SectionCard
-            title="Insights"
-            subtitle="These cards turn the selected period into action: where margin leaks, where revenue lags, and what to do next."
-          >
+          {secondaryMetrics.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto pb-1 pt-1">
+              {secondaryMetrics.map((metric) => (
+                <div key={metric.key} className="min-w-[220px] shrink-0">
+                  <CompactMetricCard title={metric.label} value={metric.value} subtitle={metric.subtitle} tone={metric.tone} />
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <SectionCard title="Insights" subtitle="What happened, why it happened, and what to do next.">
             {combinedInsights.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                {combinedInsights.map((insight) => (
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                {visibleInsights.map((insight) => (
                   <InsightCard key={insight.key} insight={insight} />
                 ))}
               </div>
@@ -810,20 +888,59 @@ export default function CompanyAnalyticsPage() {
             )}
           </SectionCard>
 
+          <div className="flex flex-wrap gap-2">
+            {sectionTabs.map((tab) => {
+              const active = activeSection === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveSection(tab.key)}
+                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${active ? "border-zinc-900 bg-zinc-900 text-white shadow-sm" : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"}`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {activeSection === "overview" ? (
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+              <CompactMetricCard
+                title="Best period"
+                value={bestPeriod?.label ?? "-"}
+                subtitle={bestPeriod ? `${formatMoney(bestPeriod.revenue_ex_vat)} revenue ex VAT` : "No highlight yet"}
+                tone="emerald"
+              />
+              <CompactMetricCard
+                title="Weakest period"
+                value={weakestPeriod?.label ?? "-"}
+                subtitle={weakestPeriod ? `${formatMoney(weakestPeriod.revenue_ex_vat)} revenue ex VAT` : "No weak window yet"}
+                tone="rose"
+              />
+              <CompactMetricCard
+                title="Coverage"
+                value={formatCount(analytics.coverage.weekly_reports)}
+                subtitle={`${formatCount(analytics.coverage.sales_invoices)} invoices · ${formatCount(analytics.coverage.matched_products)} matched products`}
+                tone="blue"
+              />
+            </div>
+          ) : null}
+
           <SectionCard
             title="Revenue Intelligence"
             subtitle="Revenue trend, best and weakest periods, and the product mix driving sales."
+            className={activeSection !== "revenue" ? "hidden" : ""}
           >
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.9fr]">
-              <div className="rounded-[28px] border border-zinc-200 bg-zinc-50/70 p-5">
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
                 <div className="flex items-center gap-3">
                   <BarChart3 size={18} className="text-zinc-500" />
-                  <h3 className="text-xl font-semibold tracking-tight text-zinc-950">Revenue trend</h3>
+                  <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Revenue trend</h3>
                 </div>
                 <p className="mt-2 text-sm text-zinc-500">
                   Revenue ex VAT over the selected period. The granularity changes automatically with the period length.
                 </p>
-                <div className="mt-6 h-[320px]">
+                <div className="mt-6 h-[260px]">
                   {revenueTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={revenueTrend}>
@@ -858,7 +975,7 @@ export default function CompanyAnalyticsPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <TrendingUp size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Best and weakest periods</h3>
@@ -894,7 +1011,7 @@ export default function CompanyAnalyticsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <Users size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Top products</h3>
@@ -930,7 +1047,7 @@ export default function CompanyAnalyticsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <Target size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Top categories</h3>
@@ -961,17 +1078,18 @@ export default function CompanyAnalyticsPage() {
           <SectionCard
             title="Margin Intelligence"
             subtitle="Gross margin, net margin, labour, food cost, and where compression appears."
+            className={activeSection !== "margin" ? "hidden" : ""}
           >
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.95fr]">
-              <div className="rounded-[28px] border border-zinc-200 bg-zinc-50/70 p-5">
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
                 <div className="flex items-center gap-3">
                   <LineChartIcon size={18} className="text-zinc-500" />
-                  <h3 className="text-xl font-semibold tracking-tight text-zinc-950">Margin trend</h3>
+                  <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Margin trend</h3>
                 </div>
                 <p className="mt-2 text-sm text-zinc-500">
                   Weekly gross margin, net margin, labour, and food cost signals.
                 </p>
-                <div className="mt-6 h-[320px]">
+                <div className="mt-6 h-[260px]">
                   {weeklyTrendPoints.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={weeklyTrendPoints}>
@@ -1003,7 +1121,7 @@ export default function CompanyAnalyticsPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <Flame size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Margin compression periods</h3>
@@ -1027,7 +1145,7 @@ export default function CompanyAnalyticsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <ShoppingCart size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Top cost categories</h3>
@@ -1052,7 +1170,7 @@ export default function CompanyAnalyticsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <Warehouse size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Top suppliers</h3>
@@ -1083,6 +1201,7 @@ export default function CompanyAnalyticsPage() {
           <SectionCard
             title="Budget / Forecast Tracking"
             subtitle="Compare actuals to the budget plan in this browser, and to the run-rate projection from live MarginFlow data."
+            className={activeSection !== "budget" ? "hidden" : ""}
           >
             {budgetSummary ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1142,17 +1261,18 @@ export default function CompanyAnalyticsPage() {
           <SectionCard
             title="Operational Performance"
             subtitle="See how sales and labour move together, and where the weakest days and weeks sit."
+            className={activeSection !== "operations" ? "hidden" : ""}
           >
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-[28px] border border-zinc-200 bg-zinc-50/70 p-5">
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
                 <div className="flex items-center gap-3">
                   <LineChartIcon size={18} className="text-zinc-500" />
-                  <h3 className="text-xl font-semibold tracking-tight text-zinc-950">Sales vs labour relationship</h3>
+                  <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Sales vs labour relationship</h3>
                 </div>
                 <p className="mt-2 text-sm text-zinc-500">
                   Each point is a weekly report. The goal is higher revenue with a controlled labour share.
                 </p>
-                <div className="mt-6 h-[320px]">
+                <div className="mt-6 h-[260px]">
                   {analytics.weekly_trend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <ScatterChart>
@@ -1209,7 +1329,7 @@ export default function CompanyAnalyticsPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <Flame size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Weakest operating weeks</h3>
@@ -1238,7 +1358,7 @@ export default function CompanyAnalyticsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <Compass size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Weakest days</h3>
@@ -1260,7 +1380,7 @@ export default function CompanyAnalyticsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4">
                   <div className="flex items-center gap-3">
                     <Users size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Coverage</h3>

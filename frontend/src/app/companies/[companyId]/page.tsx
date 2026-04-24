@@ -118,16 +118,16 @@ function MetricCard({
   }
 
   return (
-    <div className={`relative rounded-2xl border bg-gradient-to-br p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5 hover:z-10 ${toneMap[tone]}`}>
+    <div className={`relative rounded-2xl border bg-gradient-to-br p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-transform duration-150 hover:-translate-y-0.5 hover:z-10 ${toneMap[tone]}`}>
       {tooltip ? (
         <div className="absolute right-3 top-3">
           <TooltipIcon definition={tooltip} />
         </div>
       ) : null}
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{title}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 md:text-[2.4rem]">{value}</p>
-      {subtitle && <p className="mt-3 text-sm leading-6 text-zinc-500">{subtitle}</p>}
-      {note && <p className="mt-2 text-sm font-medium text-zinc-700">{note}</p>}
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{title}</p>
+      <p className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-950 md:text-[2rem]">{value}</p>
+      {subtitle && <p className="mt-2 text-xs leading-5 text-zinc-500">{subtitle}</p>}
+      {note && <p className="mt-1.5 text-xs font-medium text-zinc-700">{note}</p>}
     </div>
   )
 }
@@ -145,9 +145,9 @@ function SectionCard({
 }) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-      <div className="flex items-center justify-between gap-4 border-b border-zinc-100 px-5 py-5 md:px-6">
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-4 py-4 md:px-5">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-zinc-950 md:text-[1.9rem]">{title}</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-zinc-950 md:text-[1.5rem]">{title}</h2>
           {subtitle && <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>}
         </div>
         {action}
@@ -420,40 +420,27 @@ export default function CompanyPage() {
 
           {!loading && dashboard && (
             <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <MetricCard
                   title="Revenue"
                   value={fmtMoney(dashboard.total_sales_inc_vat)}
-                  subtitle={`Sales ex VAT: ${fmtMoney(dashboard.total_sales_ex_vat)}`}
+                  subtitle={`Sales ex VAT ${fmtMoney(dashboard.total_sales_ex_vat)}`}
                   note={
                     dashboard.total_sales_ex_vat > 0
-                      ? "Core revenue base for this company."
-                      : "No meaningful sales base yet."
+                      ? "Core revenue base"
+                      : "No meaningful sales base yet"
                   }
                   tone="yellow"
                   tooltip="Total gross revenue generated in the period, including VAT. The top-line sales figure before any costs are deducted."
                 />
 
                 <MetricCard
-                  title="Wages %"
-                  value={fmtPct(wagesPct)}
-                  subtitle={`Wages: ${fmtMoney(dashboard.total_wages)}`}
-                  note={
-                    wagesPct > IDEAL_WAGES_PCT
-                      ? `${fmtPctPoints(wagesDelta)} above ideal target`
-                      : "Within healthier labour range"
-                  }
-                  tone="red"
-                  tooltip="Total wages as a percentage of Revenue ex VAT. Keep under 32–35% for a balanced labour cost structure."
-                />
-
-                <MetricCard
                   title="Net Profit"
                   value={fmtMoney(dashboard.total_net_profit)}
-                  subtitle={`Gross Profit: ${fmtMoney(dashboard.total_gross_profit)}`}
+                  subtitle={`Gross Profit ${fmtMoney(dashboard.total_gross_profit)}`}
                   note={
                     dashboard.total_gross_profit > 0
-                      ? `${fmtPct(netProfitConversion)} profit conversion from revenue`
+                      ? `${fmtPct(netProfitConversion)} conversion`
                       : "No gross profit conversion yet"
                   }
                   tone="green"
@@ -461,52 +448,36 @@ export default function CompanyPage() {
                 />
 
                 <MetricCard
-                  title="Cash Flow"
-                  value={fmtMoney(cashFlow)}
-                  subtitle={`Food Cost: ${fmtMoney(dashboard.total_food_cost)}`}
-                  note={cashFlow < 0 ? "Negative operating result" : "Positive operating result"}
-                  tone="blue"
-                  tooltip="Operating cash generated: Revenue minus all operational costs. Positive means the business is self-funding its operations."
-                />
-              </div>
-
-              <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-3">
-                <MetricCard
-                  title="Profit Conversion"
+                  title="Net Margin"
                   value={fmtPct(netProfitConversion)}
-                  subtitle="Net profit as % of sales ex VAT"
-                  note="North-star profitability metric"
+                  subtitle="Net profit as a share of sales"
+                  note={netProfitConversion > IDEAL_NET_MARGIN_PCT ? "Healthy conversion" : "Profit still tight"}
                   tone="green"
-                  tooltip="Net Profit ÷ Revenue ex VAT × 100. Measures how efficiently the business converts top-line revenue into bottom-line profit."
+                  tooltip="Net profit as a percentage of Revenue ex VAT."
                 />
 
                 <MetricCard
                   title="Food Cost %"
                   value={fmtPct(foodCostPct)}
-                  subtitle={`Food Cost: ${fmtMoney(dashboard.total_food_cost)}`}
-                  note={
-                    foodCostPct > 0.3
-                      ? "Food cost is pressuring margin"
-                      : "Food cost is in a healthier range"
-                  }
+                  subtitle={`Food Cost ${fmtMoney(dashboard.total_food_cost)}`}
+                  note={foodCostPct > 0.3 ? "Margin pressure" : "In range"}
                   tone="yellow"
                   tooltip="Cost of ingredients and consumables as a percentage of Revenue ex VAT. Target under 30% for healthy gross margins."
                 />
 
                 <MetricCard
-                  title="Trend vs Previous Week"
-                  value={previousWeekTrend ? fmtDeltaPct(previousWeekTrend.deltaPct) : "N/A"}
-                  subtitle={
-                    previousWeekTrend
-                      ? `${fmtMoney(previousWeekTrend.previousValue)} → ${fmtMoney(previousWeekTrend.currentValue)}`
-                      : "Not enough weekly history"
+                  title="Labour %"
+                  value={fmtPct(wagesPct)}
+                  subtitle={`Wages ${fmtMoney(dashboard.total_wages)}`}
+                  note={
+                    wagesPct > IDEAL_WAGES_PCT
+                      ? `${fmtPctPoints(wagesDelta)} above target`
+                      : "Within healthier range"
                   }
-                  note="Net profit movement vs prior week"
-                  tone="blue"
-                  tooltip="Net profit change versus the prior week, expressed as a percentage. Positive = improving trend, negative = declining trend."
+                  tone="red"
+                  tooltip="Total wages as a percentage of Revenue ex VAT. Keep under 32???35% for a balanced labour cost structure."
                 />
               </div>
-
               <div className="mt-8">
                 <SectionCard
                   title={`Weekly ${getMetricLabel(selectedMetric)} Trend`}
@@ -540,8 +511,8 @@ export default function CompanyPage() {
                     </div>
                   }
                 >
-                  <div className="p-6">
-                    <div className="h-[420px] w-full">
+                  <div className="p-4 md:p-5">
+                    <div className="h-[320px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={chartData}>
                           <defs>
@@ -591,71 +562,6 @@ export default function CompanyPage() {
 
               <div className="mt-8">
                 <SectionCard
-                  title="Profit Breakdown"
-                  subtitle="How revenue is being converted into profit."
-                >
-                  <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5">
-                      <p className="text-sm font-medium text-zinc-500">Revenue</p>
-                      <p className="mt-2 text-2xl font-semibold text-zinc-950">
-                        {fmtMoney(dashboard.total_sales_ex_vat)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5">
-                      <p className="text-sm font-medium text-zinc-500">Food Cost</p>
-                      <p className="mt-2 text-2xl font-semibold text-zinc-950">
-                        - {fmtMoney(dashboard.total_food_cost)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5">
-                      <p className="text-sm font-medium text-zinc-500">Gross Profit</p>
-                      <p className="mt-2 text-2xl font-semibold text-zinc-950">
-                        {fmtMoney(dashboard.total_gross_profit)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5">
-                      <p className="text-sm font-medium text-zinc-500">Wages</p>
-                      <p className="mt-2 text-2xl font-semibold text-zinc-950">
-                        - {fmtMoney(dashboard.total_wages)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5">
-                      <p className="text-sm font-medium text-zinc-500">Fixed Costs</p>
-                      <p className="mt-2 text-2xl font-semibold text-zinc-950">
-                        - {fmtMoney(dashboard.total_fixed_costs)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5">
-                      <p className="text-sm font-medium text-zinc-500">Variable Costs</p>
-                      <p className="mt-2 text-2xl font-semibold text-zinc-950">
-                        - {fmtMoney(dashboard.total_variable_costs)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-zinc-200 bg-zinc-50/60 p-5">
-                      <p className="text-sm font-medium text-zinc-500">Loans / HP</p>
-                      <p className="mt-2 text-2xl font-semibold text-zinc-950">
-                        - {fmtMoney(dashboard.total_loans_hp)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5">
-                      <p className="text-sm font-medium text-zinc-500">Net Profit</p>
-                      <p className="mt-2 text-2xl font-semibold text-zinc-950">
-                        {fmtMoney(dashboard.total_net_profit)}
-                      </p>
-                    </div>
-                  </div>
-                </SectionCard>
-              </div>
-
-              <div className="mt-8">
-                <SectionCard
                   title="Last Weeks"
                   subtitle="Recent weekly performance for this company."
                 >
@@ -663,23 +569,21 @@ export default function CompanyPage() {
                     <table className="min-w-full text-sm">
                       <thead className="bg-zinc-50 text-left text-zinc-500">
                         <tr>
-                          <th className="px-6 py-4 font-medium">Week Ending</th>
-                          <th className="px-6 py-4 font-medium">Sales ex VAT</th>
-                          <th className="px-6 py-4 font-medium">Gross Profit</th>
-                          <th className="px-6 py-4 font-medium">Gross Margin</th>
-                          <th className="px-6 py-4 font-medium">Net Profit</th>
-                          <th className="px-6 py-4 font-medium">Net Margin</th>
+                          <th className="px-4 py-3 font-medium">Week Ending</th>
+                          <th className="px-4 py-3 font-medium">Sales ex VAT</th>
+                          <th className="px-4 py-3 font-medium">Gross Profit</th>
+                          <th className="px-4 py-3 font-medium">Net Profit</th>
+                          <th className="px-4 py-3 font-medium">Net Margin</th>
                         </tr>
                       </thead>
                       <tbody>
                         {dashboard.last_weeks.map((week) => (
                           <tr key={week.week_ending} className="border-t border-zinc-100">
-                            <td className="px-6 py-4 text-zinc-900">{week.week_ending}</td>
-                            <td className="px-6 py-4">{fmtMoney(week.sales_ex_vat)}</td>
-                            <td className="px-6 py-4">{fmtMoney(week.gross_profit)}</td>
-                            <td className="px-6 py-4">{fmtPct(week.gross_margin_pct)}</td>
-                            <td className="px-6 py-4">{fmtMoney(week.net_profit)}</td>
-                            <td className="px-6 py-4">{fmtPct(week.net_margin_pct)}</td>
+                            <td className="px-4 py-3 text-zinc-900">{week.week_ending}</td>
+                            <td className="px-4 py-3">{fmtMoney(week.sales_ex_vat)}</td>
+                            <td className="px-4 py-3">{fmtMoney(week.gross_profit)}</td>
+                            <td className="px-4 py-3">{fmtMoney(week.net_profit)}</td>
+                            <td className="px-4 py-3">{fmtPct(week.net_margin_pct)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -688,38 +592,38 @@ export default function CompanyPage() {
                 </SectionCard>
               </div>
 
-              <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-3">
-                <div className="rounded-3xl border border-rose-200 bg-rose-50/60 p-5 shadow-sm">
+              <div className="mt-8 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
                   <div className="flex items-start gap-4">
-                    <div className="rounded-2xl bg-rose-100 p-3 text-rose-700">
+                    <div className="rounded-xl bg-rose-100 p-2 text-rose-700">
                       <AlertTriangle size={18} />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-zinc-950">Labour Alert</h3>
+                      <h3 className="text-base font-semibold text-zinc-950">Labour Alert</h3>
                       <p className="mt-2 text-sm leading-6 text-zinc-600">{labourAlert}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-sky-200 bg-sky-50/60 p-5 shadow-sm">
+                <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4 shadow-sm">
                   <div className="flex items-start gap-4">
-                    <div className="rounded-2xl bg-sky-100 p-3 text-sky-700">
+                    <div className="rounded-xl bg-sky-100 p-2 text-sky-700">
                       <Target size={18} />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-zinc-950">Margin Insight</h3>
+                      <h3 className="text-base font-semibold text-zinc-950">Margin Insight</h3>
                       <p className="mt-2 text-sm leading-6 text-zinc-600">{marginInsight}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
                   <div className="flex items-start gap-4">
-                    <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
+                    <div className="rounded-xl bg-emerald-100 p-2 text-emerald-700">
                       <Lightbulb size={18} />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-zinc-950">Recommended Focus</h3>
+                      <h3 className="text-base font-semibold text-zinc-950">Recommended Focus</h3>
                       <p className="mt-2 text-sm leading-6 text-zinc-600">{recommendedFocus}</p>
                     </div>
                   </div>

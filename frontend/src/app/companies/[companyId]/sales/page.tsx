@@ -423,7 +423,7 @@ export default function CompanySalesPage() {
       <WorkspacePageHeader
         label="Sales intelligence"
         title="Sales"
-        subtitle="Sales Intelligence for the selected company. Track Zoho invoices, top customers, item performance, and sales momentum in one place."
+        subtitle="Focused sales intelligence for the selected company."
         companyName={analytics?.company_name ?? "Selected Company"}
         companyMeta={
           analytics
@@ -448,17 +448,14 @@ export default function CompanySalesPage() {
 
       {!loading && analytics && (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard title="Sales inc VAT" value={fmtMoney(analytics.total_sales_inc_vat)} subtitle={`Latest ${selectedRangeWindow.label.toLowerCase()} of Zoho invoice activity.`} tone="amber" />
             <MetricCard title="Sales ex VAT" value={fmtMoney(analytics.total_sales_ex_vat)} subtitle="Corrected net revenue for reporting and weekly analytics." tone="green" />
-            <MetricCard title="VAT Collected" value={fmtMoney(analytics.vat_collected)} subtitle="Difference between inc and ex VAT — useful for VAT returns." />
+            <MetricCard title="VAT Collected" value={fmtMoney(analytics.vat_collected)} subtitle="Difference between inc and ex VAT ??? useful for VAT returns." />
             <MetricCard title="Invoice Count" value={fmtInt(analytics.invoice_count)} subtitle="Invoices captured in the selected time window." tone="blue" />
-            <MetricCard title="Active Customers" value={fmtInt(analytics.active_customers)} subtitle="Distinct customers buying in this period." />
-            <MetricCard title="Average Order Value" value={fmtMoney(analytics.average_order_value)} subtitle="Average basket value ex VAT." />
           </div>
-
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
               <div className="flex items-center gap-3">
                 <Building2 size={18} className="text-zinc-500" />
                 <div>
@@ -473,7 +470,7 @@ export default function CompanySalesPage() {
                   ? "Sales sync uses the same Zoho ledger as Weekly Reports, so ex VAT reporting stays aligned across the workspace."
                   : "Connect Zoho Invoice to unlock invoice-level sales analytics, customer rankings, and weekly sales sync."}
               </p>
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Connected email</p>
                   <p className="mt-1 text-sm font-semibold text-zinc-950">{analytics.connection.connected_email || "Not available"}</p>
@@ -483,7 +480,7 @@ export default function CompanySalesPage() {
                   <p className="mt-1 text-sm font-semibold text-zinc-950">{formatDate(analytics.connection.last_sync_at)}</p>
                 </div>
               </div>
-              <div className="mt-5 flex flex-wrap items-center gap-3">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 {analytics.connection.connected ? (
                   <>
                     <button onClick={handleSync} disabled={syncing || disconnecting} className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
@@ -504,12 +501,12 @@ export default function CompanySalesPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
               <div className="flex items-center gap-3">
                 <CalendarDays size={18} className="text-zinc-500" />
-                <h3 className="text-xl font-semibold tracking-tight text-zinc-950">Time window</h3>
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Time window</h3>
               </div>
-              <p className="mt-3 text-sm leading-6 text-zinc-500">Use the same window across the trend, customer ranking, items, and invoice list.</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">Use the same window across the trend, customer ranking, items, and invoice list.</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {rangeOptions.map((option) => {
                   const active = selectedRange === option.value
@@ -531,12 +528,12 @@ export default function CompanySalesPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
               <div className="flex items-center gap-3">
                 <Target size={18} className="text-zinc-500" />
-                <h3 className="text-xl font-semibold tracking-tight text-zinc-950">Sales pulse</h3>
+                <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Sales pulse</h3>
               </div>
-              <div className="mt-4 space-y-3">
+              <div className="mt-2 space-y-2">
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
                   <p className="text-sm font-medium text-zinc-500">Top customer</p>
                   <p className="mt-2 text-lg font-semibold text-zinc-950">{topCustomer?.customer_name ?? "No customers yet"}</p>
@@ -578,7 +575,7 @@ export default function CompanySalesPage() {
               </div>
             </div>
             <div className="p-6">
-              <div className="h-[360px] w-full">
+              <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <defs>
@@ -862,7 +859,7 @@ export default function CompanySalesPage() {
           </Card>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
               <div className="flex items-center gap-3">
                 <Users size={18} className="text-zinc-500" />
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Customer concentration</h3>
@@ -878,7 +875,7 @@ export default function CompanySalesPage() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
               <div className="flex items-center gap-3">
                 <Wallet size={18} className="text-zinc-500" />
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Weekly reports</h3>
@@ -888,7 +885,7 @@ export default function CompanySalesPage() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
               <div className="flex items-center gap-3">
                 <BarChart3 size={18} className="text-zinc-500" />
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Trend quality</h3>
