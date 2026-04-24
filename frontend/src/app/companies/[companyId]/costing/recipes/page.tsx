@@ -1,128 +1,362 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
-import { ArrowRight, BookOpen, FileText, Scale } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { Copy, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import ConfirmDialog from "@/components/confirm-dialog"
 import CostingWorkspacePage from "@/components/costing-workspace-page"
+import {
+  deleteRecipe,
+  duplicateRecipe,
+  getCompanyRecipes,
+  type RecipeListResponse,
+  type RecipeSummary,
+} from "@/services/api"
 
-function MetricTile({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string
-  value: string
-  subtitle: string
-}) {
+function fmtMoney(value: number | null | undefined) {
+  return new Intl.NumberFormat("en-IE", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 2,
+  }).format(value ?? 0)
+}
+
+function fmtPercent(value: number | null | undefined) {
+  if (value == null) return "-"
+  return `${value.toFixed(1)}%`
+}
+
+function foodCostClass(value: number | null | undefined) {
+  if (value == null) return "text-zinc-400"
+  if (value < 30) return "font-semibold text-emerald-700"
+  if (value <= 40) return "font-semibold text-amber-700"
+  return "font-semibold text-rose-700"
+}
+
+function StatusBadge({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+        Active
+      </span>
+    )
+  }
   return (
-    <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-      <p className="text-sm font-medium text-zinc-500">{title}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-zinc-500">{subtitle}</p>
-    </div>
+    <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+      Inactive
+    </span>
   )
 }
 
+function SkeletonRow() {
+  return (
+    <tr>
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <td key={i} className="px-4 py-3">
+          <div className="h-4 animate-pulse rounded bg-zinc-100" />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
+type RecipeFilter = "all" | "active" | "missing"
+
 export default function RecipesPage() {
   const params = useParams()
+  const router = useRouter()
   const companyId = params.companyId as string
+
+  const [data, setData] = useState<RecipeListResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<RecipeFilter>("all")
+  const [search, setSearch] = useState("")
+  const [deleteTarget, setDeleteTarget] = useState<RecipeSummary | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [duplicateBusyId, setDuplicateBusyId] = useState<string | null>(null)
+
+  async function loadRecipes() {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await getCompanyRecipes(companyId)
+      setData(response)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load recipes."
+      if (
+        message.toLowerCase().includes("session expired") ||
+        message.toLowerCase().includes("401") ||
+        message.toLowerCase().includes("missing bearer token") ||
+        message.toLowerCase().includes("invalid token")
+      ) {
+        router.replace("/login")
+        return
+      }
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadRecipes()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId])
+
+  async function handleDeleteRecipe() {
+    if (!deleteTarget) return
+    try {
+      setDeleteBusy(true)
+      await deleteRecipe(deleteTarget.id)
+      setDeleteTarget(null)
+      await loadRecipes()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete recipe.")
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
+
+  async function handleDuplicateRecipe(recipe: RecipeSummary) {
+    try {
+      setDuplicateBusyId(recipe.id)
+      const response = await duplicateRecipe(recipe.id, {})
+      router.push(`/companies/${companyId}/costing/recipes/${response.recipe.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to duplicate recipe.")
+    } finally {
+      setDuplicateBusyId(null)
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const all = data?.recipes ?? []
+    return all.filter((r) => {
+      if (filter === "active" && !r.is_active) return false
+      if (filter === "missing" && !r.has_missing_costs) return false
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        return r.recipe_name.toLowerCase().includes(q) || (r.category ?? "").toLowerCase().includes(q)
+      }
+      return true
+    })
+  }, [data, filter, search])
+
+  const filterOptions: { label: string; value: RecipeFilter }[] = [
+    { label: "All", value: "all" },
+    { label: "Active", value: "active" },
+    { label: "Missing costs", value: "missing" },
+  ]
 
   return (
     <CostingWorkspacePage
       companyId={companyId}
       title="Recipes"
-      subtitle="Create recipe costing sheets that pull the latest ingredient prices automatically and calculate total cost, yield cost, and margin signals."
-      companyMeta="Internal naming stays clean as Recipes. If you want the brand label later, this module can surface as ZRecipe without changing the data model."
+      subtitle="Recipe costing sheets that pull live ingredient prices and calculate food cost."
       actions={
         <Link
-          href={`/companies/${companyId}/costing/purchase-invoices`}
-          className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950"
+          href={`/companies/${companyId}/costing/recipes/new`}
+          className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90"
         >
-          <FileText size={16} />
-          Invoice source
+          <Plus size={16} />
+          New recipe
         </Link>
       }
     >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <MetricTile
-          title="Recipe sheets"
-          value="0"
-          subtitle="No saved costing sheets yet for this company."
-        />
-        <MetricTile
-          title="Missing prices"
-          value="0"
-          subtitle="Missing ingredient cost warnings will surface here."
-        />
-        <MetricTile
-          title="Margin ready"
-          value="Live"
-          subtitle="Selling price, food cost %, markup, and margin will calculate once recipes exist."
-        />
-      </div>
+      {error ? (
+        <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 shadow-sm">
+          {error}
+        </div>
+      ) : null}
 
-      <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-zinc-900 p-3 text-white">
-              <BookOpen size={18} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Recipe costing</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-                Turn ingredient prices into recipe discipline
-              </h2>
-            </div>
+      <div className="rounded-[28px] border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+        {/* Toolbar */}
+        <div className="flex flex-col gap-3 border-b border-zinc-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            {filterOptions.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+                  filter === f.value
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+                }`}
+              >
+                {f.label}
+                {f.value === "missing" && (data?.missing_cost_recipes ?? 0) > 0 ? (
+                  <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                    {data?.missing_cost_recipes}
+                  </span>
+                ) : null}
+              </button>
+            ))}
           </div>
-          <p className="mt-5 text-sm leading-7 text-zinc-600">
-            Recipes will inherit latest normalized ingredient costs, then calculate total recipe cost ex VAT, inc VAT, cost per yield, cost per portion, and optional gross margin signals when selling price is present.
-          </p>
-
-          <div className="mt-6 rounded-[24px] border border-zinc-200 bg-zinc-50/70 p-5">
-            <p className="text-sm font-semibold text-zinc-950">Planned recipe sheet fields</p>
-            <p className="mt-3 text-sm leading-6 text-zinc-500">
-              Yield, portion size, wastage %, category, active/inactive state, selling price, target food cost %, packaging override, and labour override fields are all part of the intended first costing model.
-            </p>
+          <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
+            <Search size={14} className="shrink-0 text-zinc-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search recipes..."
+              className="w-44 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+            />
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-zinc-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfbfc_100%)] p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
-              <Scale size={18} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Live cost behavior</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-                Cost sheets should stay connected to reality
-              </h2>
-            </div>
-          </div>
-          <ul className="mt-5 space-y-3 text-sm leading-6 text-zinc-600">
-            <li>Latest paid price drives default costing</li>
-            <li>Missing price data should show warnings, never silent zeroes</li>
-            <li>Price provenance remains visible to the operator</li>
-            <li>Recipe totals should refresh automatically as newer purchase lines arrive</li>
-          </ul>
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-zinc-50 text-left">
+              <tr>
+                <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Recipe
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Yield
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Cost ex VAT
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Cost per yield
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Food cost %
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : filtered.length > 0 ? (
+                filtered.map((recipe: RecipeSummary) => (
+                  <tr
+                    key={recipe.id}
+                    className="border-t border-zinc-100 transition hover:bg-zinc-50"
+                  >
+                    <td className="px-6 py-3.5">
+                      <Link
+                        href={`/companies/${companyId}/costing/recipes/${recipe.id}`}
+                        className="font-medium text-zinc-950 hover:underline"
+                      >
+                        {recipe.recipe_name}
+                      </Link>
+                      <p className="mt-0.5 text-xs text-zinc-500">
+                        {recipe.category || "Uncategorised"} · {recipe.ingredient_count} ingredients
+                      </p>
+                    </td>
+                    <td className="px-4 py-3.5 text-zinc-600">
+                      {recipe.yield_quantity} {recipe.yield_unit}
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-zinc-700">
+                      {recipe.total_recipe_cost_ex_vat == null
+                        ? "-"
+                        : fmtMoney(recipe.total_recipe_cost_ex_vat)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-zinc-700">
+                      {recipe.cost_per_yield_ex_vat == null
+                        ? "-"
+                        : fmtMoney(recipe.cost_per_yield_ex_vat)}
+                    </td>
+                    <td className={`px-4 py-3.5 text-right ${foodCostClass(recipe.food_cost_percent)}`}>
+                      {fmtPercent(recipe.food_cost_percent)}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge active={recipe.is_active} />
+                        {recipe.has_missing_costs ? (
+                          <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+                            Missing cost
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/companies/${companyId}/costing/recipes/${recipe.id}`}
+                          className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950"
+                        >
+                          <Pencil size={12} />
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => handleDuplicateRecipe(recipe)}
+                          disabled={duplicateBusyId === recipe.id}
+                          className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950 disabled:opacity-60"
+                        >
+                          <Copy size={12} />
+                          {duplicateBusyId === recipe.id ? "Duplicating..." : "Duplicate"}
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(recipe)}
+                          className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-6 py-16 text-center text-sm text-zinc-500">
+                    {data?.recipes.length === 0 ? (
+                      <span>
+                        No recipes yet.{" "}
+                        <Link
+                          href={`/companies/${companyId}/costing/recipes/new`}
+                          className="font-medium text-zinc-950 underline underline-offset-2"
+                        >
+                          Create your first recipe →
+                        </Link>
+                      </span>
+                    ) : (
+                      "No recipes match the current filter."
+                    )}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+
+        {/* Footer */}
+        {!loading && data && data.recipes.length > 0 ? (
+          <div className="border-t border-zinc-100 px-6 py-3 text-xs text-zinc-500">
+            {filtered.length} recipe{filtered.length === 1 ? "" : "s"}
+            {filter !== "all" ? ` · ${filter}` : ""}
+          </div>
+        ) : null}
       </div>
 
-      <div className="mt-8 rounded-[28px] border border-dashed border-zinc-300 bg-white px-6 py-12 text-center shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Empty state</p>
-        <h3 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">No recipes costed yet</h3>
-        <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-zinc-500">
-          Once recipe sheets are enabled, this page will show company recipes, missing-cost warnings, and quick links into individual recipe detail editors.
-        </p>
-        <div className="mt-6 flex justify-center">
-          <Link
-            href={`/companies/${companyId}/costing/recipes/template-preview`}
-            className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-white hover:text-zinc-950"
-          >
-            Preview recipe detail shell
-            <ArrowRight size={16} />
-          </Link>
-        </div>
-      </div>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete recipe?"
+        description={
+          deleteTarget
+            ? `Deleting ${deleteTarget.recipe_name} will remove the recipe and its ingredient lines. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete recipe"
+        destructive
+        busy={deleteBusy}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteRecipe}
+      />
     </CostingWorkspacePage>
   )
 }

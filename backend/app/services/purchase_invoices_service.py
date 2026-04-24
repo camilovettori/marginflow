@@ -11,7 +11,7 @@ from app.models.company import Company
 from app.models.ingredient import Ingredient
 from app.models.purchase_invoice import PurchaseInvoice
 from app.models.purchase_invoice_line import PurchaseInvoiceLine
-from app.schemas.purchase_invoice import PurchaseInvoiceCreate
+from app.schemas.purchase_invoice import PurchaseInvoiceCreate, PurchaseInvoiceUpdate
 
 
 MONEY_QUANT = Decimal("0.01")
@@ -83,6 +83,64 @@ def _serialize_invoice(invoice: PurchaseInvoice) -> dict:
     }
 
 
+def _build_invoice_lines(
+    *,
+    tenant_id: UUID,
+    company_id: UUID,
+    payload: PurchaseInvoiceCreate | PurchaseInvoiceUpdate,
+) -> tuple[list[PurchaseInvoiceLine], Decimal, Decimal, Decimal]:
+    line_models: list[PurchaseInvoiceLine] = []
+    subtotal_ex_vat = Decimal("0")
+    vat_total = Decimal("0")
+    total_inc_vat = Decimal("0")
+
+    for index, item in enumerate(payload.lines, start=1):
+        line_total_ex_vat = _round_money(_to_decimal(item.line_total_ex_vat))
+        vat_rate = _to_decimal(item.vat_rate)
+        computed_vat_amount = _round_money(line_total_ex_vat * (vat_rate / Decimal("100")))
+        line_total_inc = _round_money(
+            _to_decimal(item.line_total_inc_vat) if item.line_total_inc_vat is not None else line_total_ex_vat + computed_vat_amount
+        )
+        if line_total_inc < line_total_ex_vat:
+            raise HTTPException(status_code=400, detail=f"Line {index} has inc VAT lower than ex VAT")
+
+        vat_amount = _round_money(line_total_inc - line_total_ex_vat)
+        net_quantity = _to_decimal(item.net_quantity_for_costing)
+        normalized_ex = _round_unit_cost(line_total_ex_vat / net_quantity)
+        normalized_inc = _round_unit_cost(line_total_inc / net_quantity)
+
+        line_models.append(
+            PurchaseInvoiceLine(
+                tenant_id=tenant_id,
+                company_id=company_id,
+                line_order=index,
+                ingredient_name=item.ingredient_name.strip(),
+                ingredient_sku=item.ingredient_sku.strip() if item.ingredient_sku else None,
+                category=item.category.strip() if item.category else None,
+                quantity_purchased=float(_to_decimal(item.quantity_purchased)),
+                purchase_unit=item.purchase_unit.strip().lower(),
+                pack_size_value=float(_to_decimal(item.pack_size_value)) if item.pack_size_value is not None else None,
+                pack_size_unit=item.pack_size_unit.strip().lower() if item.pack_size_unit else None,
+                net_quantity_for_costing=float(net_quantity),
+                costing_unit=item.costing_unit.strip().lower(),
+                line_total_ex_vat=float(line_total_ex_vat),
+                vat_rate=float(vat_rate),
+                vat_amount=float(vat_amount),
+                line_total_inc_vat=float(line_total_inc),
+                normalized_unit_cost_ex_vat=float(normalized_ex),
+                normalized_unit_cost_inc_vat=float(normalized_inc),
+                brand=item.brand.strip() if item.brand else None,
+                supplier_product_name=item.supplier_product_name.strip() if item.supplier_product_name else None,
+            )
+        )
+
+        subtotal_ex_vat += line_total_ex_vat
+        vat_total += vat_amount
+        total_inc_vat += line_total_inc
+
+    return line_models, subtotal_ex_vat, vat_total, total_inc_vat
+
+
 def _get_company_or_404(db: Session, tenant_id: UUID, company_id: UUID) -> Company:
     company = (
         db.query(Company)
@@ -151,6 +209,82 @@ def _upsert_ingredient_from_line(
     return ingredient
 
 
+def _latest_line_for_ingredient(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    company_id: UUID,
+    ingredient_id: UUID,
+) -> tuple[PurchaseInvoiceLine, PurchaseInvoice] | None:
+    row = (
+        db.query(PurchaseInvoiceLine, PurchaseInvoice)
+        .join(PurchaseInvoice, PurchaseInvoice.id == PurchaseInvoiceLine.purchase_invoice_id)
+        .filter(
+            PurchaseInvoiceLine.tenant_id == tenant_id,
+            PurchaseInvoiceLine.company_id == company_id,
+            PurchaseInvoiceLine.ingredient_id == ingredient_id,
+            PurchaseInvoice.status == "posted",
+        )
+        .order_by(
+            PurchaseInvoice.invoice_date.desc(),
+            PurchaseInvoice.created_at.desc(),
+            PurchaseInvoiceLine.created_at.desc(),
+            PurchaseInvoiceLine.line_order.desc(),
+        )
+        .first()
+    )
+    return row
+
+
+def _rebuild_ingredient_latest_memory(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    company_id: UUID,
+    ingredient_ids: set[UUID],
+) -> None:
+    if not ingredient_ids:
+        return
+
+    for ingredient_id in ingredient_ids:
+        ingredient = (
+            db.query(Ingredient)
+            .filter(
+                Ingredient.id == ingredient_id,
+                Ingredient.tenant_id == tenant_id,
+                Ingredient.company_id == company_id,
+            )
+            .first()
+        )
+        if not ingredient:
+            continue
+
+        latest_row = _latest_line_for_ingredient(
+            db,
+            tenant_id=tenant_id,
+            company_id=company_id,
+            ingredient_id=ingredient_id,
+        )
+
+        if not latest_row:
+            ingredient.latest_unit_cost_ex_vat = None
+            ingredient.latest_unit_cost_inc_vat = None
+            ingredient.latest_purchase_date = None
+            ingredient.latest_supplier_name = None
+            db.add(ingredient)
+            continue
+
+        line, invoice = latest_row
+        ingredient.latest_unit_cost_ex_vat = float(line.normalized_unit_cost_ex_vat or 0)
+        ingredient.latest_unit_cost_inc_vat = float(line.normalized_unit_cost_inc_vat or 0)
+        ingredient.latest_purchase_date = invoice.invoice_date
+        ingredient.latest_supplier_name = invoice.supplier_name
+        ingredient.default_unit_for_costing = line.costing_unit
+        if line.category:
+            ingredient.category = line.category
+        db.add(ingredient)
+
+
 def list_purchase_invoices(
     db: Session,
     *,
@@ -210,55 +344,11 @@ def create_purchase_invoice(
     payload: PurchaseInvoiceCreate,
 ) -> dict:
     _get_company_or_404(db, tenant_id, company_id)
-
-    line_models: list[PurchaseInvoiceLine] = []
-    subtotal_ex_vat = Decimal("0")
-    vat_total = Decimal("0")
-    total_inc_vat = Decimal("0")
-
-    for index, item in enumerate(payload.lines, start=1):
-        line_total_ex_vat = _round_money(_to_decimal(item.line_total_ex_vat))
-        vat_rate = _to_decimal(item.vat_rate)
-        computed_vat_amount = _round_money(line_total_ex_vat * (vat_rate / Decimal("100")))
-        line_total_inc = _round_money(
-            _to_decimal(item.line_total_inc_vat) if item.line_total_inc_vat is not None else line_total_ex_vat + computed_vat_amount
-        )
-        if line_total_inc < line_total_ex_vat:
-            raise HTTPException(status_code=400, detail=f"Line {index} has inc VAT lower than ex VAT")
-
-        vat_amount = _round_money(line_total_inc - line_total_ex_vat)
-        net_quantity = _to_decimal(item.net_quantity_for_costing)
-        normalized_ex = _round_unit_cost(line_total_ex_vat / net_quantity)
-        normalized_inc = _round_unit_cost(line_total_inc / net_quantity)
-
-        line_models.append(
-            PurchaseInvoiceLine(
-                tenant_id=tenant_id,
-                company_id=company_id,
-                line_order=index,
-                ingredient_name=item.ingredient_name.strip(),
-                ingredient_sku=item.ingredient_sku.strip() if item.ingredient_sku else None,
-                category=item.category.strip() if item.category else None,
-                quantity_purchased=float(_to_decimal(item.quantity_purchased)),
-                purchase_unit=item.purchase_unit.strip().lower(),
-                pack_size_value=float(_to_decimal(item.pack_size_value)) if item.pack_size_value is not None else None,
-                pack_size_unit=item.pack_size_unit.strip().lower() if item.pack_size_unit else None,
-                net_quantity_for_costing=float(net_quantity),
-                costing_unit=item.costing_unit.strip().lower(),
-                line_total_ex_vat=float(line_total_ex_vat),
-                vat_rate=float(vat_rate),
-                vat_amount=float(vat_amount),
-                line_total_inc_vat=float(line_total_inc),
-                normalized_unit_cost_ex_vat=float(normalized_ex),
-                normalized_unit_cost_inc_vat=float(normalized_inc),
-                brand=item.brand.strip() if item.brand else None,
-                supplier_product_name=item.supplier_product_name.strip() if item.supplier_product_name else None,
-            )
-        )
-
-        subtotal_ex_vat += line_total_ex_vat
-        vat_total += vat_amount
-        total_inc_vat += line_total_inc
+    line_models, subtotal_ex_vat, vat_total, total_inc_vat = _build_invoice_lines(
+        tenant_id=tenant_id,
+        company_id=company_id,
+        payload=payload,
+    )
 
     header_subtotal = _round_money(_to_decimal(payload.subtotal_ex_vat)) if payload.subtotal_ex_vat is not None else _round_money(subtotal_ex_vat)
     header_vat_total = _round_money(_to_decimal(payload.vat_total)) if payload.vat_total is not None else _round_money(vat_total)
@@ -325,3 +415,126 @@ def create_purchase_invoice(
         raise HTTPException(status_code=500, detail="Purchase invoice could not be reloaded after creation")
 
     return _serialize_invoice(invoice)
+
+
+def update_purchase_invoice(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    invoice_id: UUID,
+    payload: PurchaseInvoiceUpdate,
+) -> dict:
+    invoice = (
+        db.query(PurchaseInvoice)
+        .options(selectinload(PurchaseInvoice.lines))
+        .filter(
+            PurchaseInvoice.id == invoice_id,
+            PurchaseInvoice.tenant_id == tenant_id,
+        )
+        .first()
+    )
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Purchase invoice not found")
+
+    _get_company_or_404(db, tenant_id, invoice.company_id)
+
+    affected_ingredient_ids = {line.ingredient_id for line in invoice.lines if line.ingredient_id}
+
+    line_models, subtotal_ex_vat, vat_total, total_inc_vat = _build_invoice_lines(
+        tenant_id=tenant_id,
+        company_id=invoice.company_id,
+        payload=payload,
+    )
+
+    invoice.supplier_name = payload.supplier_name.strip()
+    invoice.invoice_number = payload.invoice_number.strip()
+    invoice.invoice_date = payload.invoice_date
+    invoice.due_date = payload.due_date
+    invoice.currency = payload.currency.strip().upper()
+    invoice.notes = payload.notes.strip() if payload.notes else None
+    invoice.attachment_name = payload.attachment_name.strip() if payload.attachment_name else None
+    invoice.vat_included = payload.vat_included
+    invoice.subtotal_ex_vat = float(_round_money(subtotal_ex_vat))
+    invoice.vat_total = float(_round_money(vat_total))
+    invoice.total_inc_vat = float(_round_money(total_inc_vat))
+    invoice.status = payload.status
+
+    invoice.lines.clear()
+    db.flush()
+
+    for line in line_models:
+        invoice.lines.append(line)
+
+    db.flush()
+
+    if invoice.status == "posted":
+        for line in invoice.lines:
+            ingredient = _upsert_ingredient_from_line(
+                db,
+                tenant_id=tenant_id,
+                company_id=invoice.company_id,
+                supplier_name=invoice.supplier_name,
+                invoice_date=invoice.invoice_date,
+                line=line,
+            )
+            line.ingredient_id = ingredient.id
+            affected_ingredient_ids.add(ingredient.id)
+            db.add(line)
+
+    try:
+        db.flush()
+        _rebuild_ingredient_latest_memory(
+            db,
+            tenant_id=tenant_id,
+            company_id=invoice.company_id,
+            ingredient_ids={ingredient_id for ingredient_id in affected_ingredient_ids if ingredient_id},
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Invoice number already exists for this supplier in this company") from exc
+
+    invoice = (
+        db.query(PurchaseInvoice)
+        .options(selectinload(PurchaseInvoice.lines))
+        .filter(PurchaseInvoice.id == invoice.id)
+        .first()
+    )
+    if not invoice:
+        raise HTTPException(status_code=500, detail="Purchase invoice could not be reloaded after update")
+
+    return _serialize_invoice(invoice)
+
+
+def delete_purchase_invoice(
+    db: Session,
+    *,
+    tenant_id: UUID,
+    invoice_id: UUID,
+) -> dict:
+    invoice = (
+        db.query(PurchaseInvoice)
+        .options(selectinload(PurchaseInvoice.lines))
+        .filter(
+            PurchaseInvoice.id == invoice_id,
+            PurchaseInvoice.tenant_id == tenant_id,
+        )
+        .first()
+    )
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Purchase invoice not found")
+
+    company_id = invoice.company_id
+    affected_ingredient_ids = {line.ingredient_id for line in invoice.lines if line.ingredient_id}
+
+    db.delete(invoice)
+    db.flush()
+    _rebuild_ingredient_latest_memory(
+        db,
+        tenant_id=tenant_id,
+        company_id=company_id,
+        ingredient_ids={ingredient_id for ingredient_id in affected_ingredient_ids if ingredient_id},
+    )
+    db.commit()
+
+    return {"success": True}

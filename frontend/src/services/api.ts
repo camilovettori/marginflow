@@ -101,6 +101,8 @@ export type PurchaseInvoiceCreatePayload = {
   lines: PurchaseInvoiceLinePayload[]
 }
 
+export type PurchaseInvoiceUpdatePayload = PurchaseInvoiceCreatePayload
+
 export type PurchaseInvoiceLine = {
   id: string
   ingredient_id?: string | null
@@ -153,6 +155,210 @@ export type PurchaseInvoiceListResponse = {
   total_spend_ex_vat: number
   total_spend_inc_vat: number
   invoices: PurchaseInvoice[]
+}
+
+export type PdfExtractedLine = {
+  ingredient_name: string
+  supplier_product_name: string
+  ingredient_sku: string | null
+  quantity_purchased: number | null
+  purchase_unit: string
+  pack_size_value: number | null
+  pack_size_unit: string | null
+  net_quantity_for_costing: number | null
+  costing_unit: string
+  unit_price_ex_vat: number | null
+  line_total_ex_vat: number | null
+  vat_rate: number | null
+  line_total_inc_vat: number | null
+  brand: string | null
+  category: string | null
+}
+
+export type PdfExtractResponse = {
+  supplier_name: string | null
+  invoice_number: string | null
+  invoice_date: string | null
+  due_date: string | null
+  currency: string | null
+  subtotal_ex_vat: number | null
+  vat_total: number | null
+  total_inc_vat: number | null
+  notes: string | null
+  vat_included: boolean
+  lines: PdfExtractedLine[]
+  warnings: string[]
+  extraction_debug: string | null
+}
+
+export type IngredientUpdatePayload = {
+  name: string
+  default_unit_for_costing: string
+  category?: string | null
+  notes?: string | null
+  is_active: boolean
+}
+
+export type Ingredient = {
+  id: string
+  tenant_id: string
+  company_id: string
+  name: string
+  normalized_name: string
+  default_unit_for_costing: string
+  category?: string | null
+  latest_unit_cost_ex_vat?: number | null
+  latest_unit_cost_inc_vat?: number | null
+  latest_purchase_date?: string | null
+  latest_supplier_name?: string | null
+  notes?: string | null
+  is_active: boolean
+  created_at?: string | null
+  updated_at?: string | null
+  purchase_count: number
+}
+
+export type IngredientPurchaseHistoryItem = {
+  line_id: string
+  invoice_id: string
+  invoice_number: string
+  invoice_date: string
+  supplier_name: string
+  quantity_purchased: number
+  purchase_unit: string
+  net_quantity_for_costing: number
+  costing_unit: string
+  line_total_ex_vat: number
+  line_total_inc_vat: number
+  normalized_unit_cost_ex_vat: number
+  normalized_unit_cost_inc_vat: number
+  brand?: string | null
+  supplier_product_name?: string | null
+}
+
+export type IngredientListResponse = {
+  company_id: string
+  total_ingredients: number
+  active_ingredients: number
+  inactive_ingredients: number
+  missing_price_ingredients: number
+  ingredients: Ingredient[]
+}
+
+export type IngredientDetailResponse = {
+  ingredient: Ingredient
+  recent_purchases: IngredientPurchaseHistoryItem[]
+}
+
+export type RecipeIngredientPayload = {
+  ingredient_id: string
+  quantity_required: number
+  unit_used: string
+}
+
+export type RecipeCreatePayload = {
+  recipe_name: string
+  photo_url?: string | null
+  category?: string | null
+  description?: string | null
+  notes?: string | null
+  yield_quantity: number
+  yield_unit: string
+  portion_size?: number | null
+  wastage_percent?: number
+  labour_cost_override?: number | null
+  packaging_cost_override?: number | null
+  target_food_cost_percent?: number | null
+  selling_price_ex_vat?: number | null
+  selling_price_inc_vat?: number | null
+  is_active?: boolean
+  ingredients: RecipeIngredientPayload[]
+}
+
+export type RecipeUpdatePayload = RecipeCreatePayload
+
+export type RecipeDuplicatePayload = {
+  recipe_name?: string | null
+}
+
+export type RecipePhotoUploadResponse = {
+  photo_url: string
+}
+
+export type RecipeIngredient = {
+  id: string
+  ingredient_id?: string | null
+  ingredient_name: string
+  ingredient_default_unit_for_costing: string
+  line_order: number
+  quantity_required: number
+  unit_used: string
+  normalized_quantity?: number | null
+  latest_unit_cost_ex_vat?: number | null
+  latest_unit_cost_inc_vat?: number | null
+  normalized_unit_cost_ex_vat?: number | null
+  normalized_unit_cost_inc_vat?: number | null
+  line_cost_ex_vat?: number | null
+  line_cost_inc_vat?: number | null
+  missing_price: boolean
+  unit_mismatch: boolean
+  source_purchase_date?: string | null
+  source_supplier_name?: string | null
+}
+
+export type RecipeSummary = {
+  id: string
+  tenant_id: string
+  company_id: string
+  recipe_name: string
+  normalized_name: string
+  photo_url?: string | null
+  category?: string | null
+  description?: string | null
+  notes?: string | null
+  yield_quantity: number
+  yield_unit: string
+  portion_size?: number | null
+  wastage_percent: number
+  labour_cost_override?: number | null
+  packaging_cost_override?: number | null
+  target_food_cost_percent?: number | null
+  selling_price_ex_vat?: number | null
+  selling_price_inc_vat?: number | null
+  is_active: boolean
+  created_at?: string | null
+  updated_at?: string | null
+  ingredient_count: number
+  missing_ingredient_count: number
+  total_recipe_cost_ex_vat?: number | null
+  total_recipe_cost_inc_vat?: number | null
+  cost_per_yield_ex_vat?: number | null
+  cost_per_yield_inc_vat?: number | null
+  cost_per_portion_ex_vat?: number | null
+  cost_per_portion_inc_vat?: number | null
+  gross_margin_value_ex_vat?: number | null
+  gross_margin_percent_ex_vat?: number | null
+  markup_percent?: number | null
+  food_cost_percent?: number | null
+  has_missing_costs: boolean
+}
+
+export type RecipeDetailResponse = {
+  recipe: RecipeSummary
+  ingredients: RecipeIngredient[]
+  warnings: string[]
+}
+
+export type RecipeListResponse = {
+  company_id: string
+  total_recipes: number
+  active_recipes: number
+  inactive_recipes: number
+  missing_cost_recipes: number
+  highest_cost_recipe_id?: string | null
+  highest_cost_recipe_name?: string | null
+  highest_cost_recipe_cost_ex_vat?: number | null
+  recipes: RecipeSummary[]
 }
 
 export type ZohoSyncResponse = {
@@ -272,6 +478,162 @@ export type SalesAnalyticsResponse = {
   top_items: SalesItemRow[]
   invoice_trend: SalesTrendPoint[]
   recent_invoices: SalesInvoiceRow[]
+}
+
+export type AnalyticsPeriodKey =
+  | "last-week"
+  | "last-4-weeks"
+  | "last-3-months"
+  | "last-6-months"
+  | "last-12-months"
+  | "specific-range"
+
+export type AnalyticsPeriod = {
+  key: AnalyticsPeriodKey
+  label: string
+  granularity: "day" | "week" | "month"
+  start_date: string
+  end_date: string
+  comparison_start_date: string
+  comparison_end_date: string
+  comparison_label: string
+  total_days: number
+}
+
+export type AnalyticsMetric = {
+  key: string
+  label: string
+  value?: number | null
+  previous_value?: number | null
+  delta?: number | null
+  delta_pct?: number | null
+  unit: "currency" | "percent" | "count" | "ratio"
+  source?: string | null
+  available: boolean
+}
+
+export type AnalyticsSummary = {
+  weekly_report_count: number
+  sales_invoice_count: number
+  sales_item_count: number
+  purchase_invoice_count: number
+  purchase_line_count: number
+  matched_product_count: number
+  revenue_ex_vat?: number | null
+  revenue_inc_vat?: number | null
+  ledger_revenue_ex_vat?: number | null
+  ledger_revenue_inc_vat?: number | null
+  gross_profit?: number | null
+  net_profit?: number | null
+  gross_margin_pct?: number | null
+  net_margin_pct?: number | null
+  labour_total?: number | null
+  labour_pct?: number | null
+  food_cost?: number | null
+  food_cost_pct?: number | null
+  fixed_costs?: number | null
+  variable_costs?: number | null
+  loans_hp?: number | null
+  vat_due?: number | null
+  average_weekly_revenue?: number | null
+  average_weekly_profit?: number | null
+  average_order_value?: number | null
+  active_customers: number
+  annualized_revenue_ex_vat?: number | null
+  annualized_gross_profit?: number | null
+  annualized_net_profit?: number | null
+  annualized_gross_margin_pct?: number | null
+  annualized_net_margin_pct?: number | null
+}
+
+export type AnalyticsTrendPoint = {
+  period: string
+  label: string
+  revenue_ex_vat: number
+  revenue_inc_vat: number
+  gross_profit?: number | null
+  net_profit?: number | null
+  gross_margin_pct?: number | null
+  net_margin_pct?: number | null
+  labour_pct?: number | null
+  food_cost_pct?: number | null
+  invoice_count?: number | null
+}
+
+export type AnalyticsHighlight = {
+  key: string
+  kind: "day" | "week" | "month"
+  direction: "best" | "worst"
+  label: string
+  start_date: string
+  end_date: string
+  revenue_ex_vat: number
+  gross_profit?: number | null
+  net_profit?: number | null
+  gross_margin_pct?: number | null
+  net_margin_pct?: number | null
+}
+
+export type AnalyticsProductRow = {
+  rank: number
+  item_id?: string | null
+  item_name: string
+  quantity_sold: number
+  revenue_ex_vat: number
+  revenue_share: number
+  invoice_count: number
+  matched_recipe_id?: string | null
+  matched_recipe_name?: string | null
+  matched_category?: string | null
+  estimated_recipe_margin_pct?: number | null
+  estimated_recipe_gross_profit?: number | null
+  estimated_recipe_food_cost_pct?: number | null
+}
+
+export type AnalyticsCategoryRow = {
+  rank: number
+  label: string
+  value: number
+  share: number
+  item_count?: number | null
+  source: string
+}
+
+export type AnalyticsInsight = {
+  key: string
+  severity: "info" | "success" | "warning" | "critical"
+  title: string
+  summary: string
+  why_it_matters: string
+  recommended_action: string
+  evidence: string[]
+}
+
+export type AnalyticsCoverage = {
+  weekly_reports: number
+  sales_invoices: number
+  sales_items: number
+  purchase_invoices: number
+  purchase_lines: number
+  recipes: number
+  matched_products: number
+}
+
+export type CompanyAnalyticsResponse = {
+  company_id: string
+  company_name: string
+  period: AnalyticsPeriod
+  summary: AnalyticsSummary
+  kpis: AnalyticsMetric[]
+  sales_trend: AnalyticsTrendPoint[]
+  weekly_trend: AnalyticsTrendPoint[]
+  highlights: AnalyticsHighlight[]
+  top_products: AnalyticsProductRow[]
+  top_revenue_categories: AnalyticsCategoryRow[]
+  top_cost_categories: AnalyticsCategoryRow[]
+  top_suppliers: AnalyticsCategoryRow[]
+  insights: AnalyticsInsight[]
+  coverage: AnalyticsCoverage
 }
 
 export function getZohoConnectUrl(companyId: string): string {
@@ -698,6 +1060,49 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function authFetchFormData<T>(path: string, formData: FormData): Promise<T> {
+  let token = getAccessToken()
+  const tenantId = getActiveTenantId()
+
+  const makeRequest = async (bearer: string | null) => {
+    try {
+      return await fetch(`${API_URL}${path}`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        cache: "no-store",
+        // No Content-Type header — browser sets it automatically for FormData (includes boundary)
+        headers: {
+          ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+          ...(tenantId ? { "X-Tenant-Id": tenantId } : {}),
+        },
+      })
+    } catch {
+      throw new Error(
+        `Unable to reach the server while requesting ${path}. Check if the backend is running.`
+      )
+    }
+  }
+
+  let res = await makeRequest(token)
+
+  if (res.status === 401) {
+    const refreshedToken = await refreshAccessToken()
+    if (!refreshedToken) {
+      throw new Error('API error 401: {"detail":"Missing bearer token"}')
+    }
+    token = refreshedToken
+    res = await makeRequest(token)
+  }
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`API error ${res.status}: ${text}`)
+  }
+
+  return res.json() as Promise<T>
+}
+
 export async function login(
   email: string,
   password: string
@@ -798,6 +1203,22 @@ export async function getSalesAnalytics(
   return authFetch<SalesAnalyticsResponse>(`/api/sales/${companyId}?${params.toString()}`)
 }
 
+export async function getCompanyAnalytics(
+  companyId: string,
+  params: {
+    period: AnalyticsPeriodKey
+    startDate?: string | null
+    endDate?: string | null
+  }
+): Promise<CompanyAnalyticsResponse> {
+  const query = new URLSearchParams()
+  query.set("period", params.period)
+  if (params.startDate) query.set("start_date", params.startDate)
+  if (params.endDate) query.set("end_date", params.endDate)
+
+  return authFetch<CompanyAnalyticsResponse>(`/api/analytics/${companyId}?${query.toString()}`)
+}
+
 export async function getCompanies(): Promise<Company[]> {
   return authFetch<Company[]>("/api/companies/")
 }
@@ -821,6 +1242,143 @@ export async function createCompanyPurchaseInvoice(
   return authFetch<PurchaseInvoice>(`/api/costing/${companyId}/purchase-invoices`, {
     method: "POST",
     body: JSON.stringify(payload),
+  })
+}
+
+export async function updateCompanyPurchaseInvoice(
+  invoiceId: string,
+  payload: PurchaseInvoiceUpdatePayload
+): Promise<PurchaseInvoice> {
+  return authFetch<PurchaseInvoice>(`/api/costing/purchase-invoices/${invoiceId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteCompanyPurchaseInvoice(
+  invoiceId: string
+): Promise<{ success: boolean }> {
+  return authFetch<{ success: boolean }>(`/api/costing/purchase-invoices/${invoiceId}`, {
+    method: "DELETE",
+  })
+}
+
+export async function uploadCompanyPurchaseInvoicePdf(
+  companyId: string,
+  file: File
+): Promise<PdfExtractResponse> {
+  const formData = new FormData()
+  formData.append("file", file)
+  return authFetchFormData<PdfExtractResponse>(
+    `/api/costing/${companyId}/purchase-invoices/upload`,
+    formData
+  )
+}
+
+export async function getCompanyIngredients(
+  companyId: string,
+  options?: {
+    search?: string
+    view?: "all" | "active" | "inactive"
+  }
+): Promise<IngredientListResponse> {
+  const params = new URLSearchParams()
+  if (options?.search) params.set("search", options.search)
+  if (options?.view) params.set("view", options.view)
+  const query = params.toString()
+  return authFetch<IngredientListResponse>(
+    query ? `/api/costing/${companyId}/ingredients?${query}` : `/api/costing/${companyId}/ingredients`,
+    {
+      method: "GET",
+    }
+  )
+}
+
+export async function getIngredientDetail(
+  ingredientId: string
+): Promise<IngredientDetailResponse> {
+  return authFetch<IngredientDetailResponse>(`/api/costing/ingredients/${ingredientId}`, {
+    method: "GET",
+  })
+}
+
+export async function updateIngredient(
+  ingredientId: string,
+  payload: IngredientUpdatePayload
+): Promise<Ingredient> {
+  return authFetch<Ingredient>(`/api/costing/ingredients/${ingredientId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function archiveIngredient(
+  ingredientId: string
+): Promise<Ingredient> {
+  return authFetch<Ingredient>(`/api/costing/ingredients/${ingredientId}`, {
+    method: "DELETE",
+  })
+}
+
+export async function getCompanyRecipes(companyId: string): Promise<RecipeListResponse> {
+  return authFetch<RecipeListResponse>(`/api/costing/${companyId}/recipes`, {
+    method: "GET",
+  })
+}
+
+export async function createCompanyRecipe(
+  companyId: string,
+  payload: RecipeCreatePayload
+): Promise<RecipeDetailResponse> {
+  return authFetch<RecipeDetailResponse>(`/api/costing/${companyId}/recipes`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function uploadRecipePhoto(
+  companyId: string,
+  file: File
+): Promise<RecipePhotoUploadResponse> {
+  const formData = new FormData()
+  formData.append("file", file)
+  return authFetchFormData<RecipePhotoUploadResponse>(
+    `/api/costing/${companyId}/recipes/photo`,
+    formData
+  )
+}
+
+export async function getRecipeDetail(recipeId: string): Promise<RecipeDetailResponse> {
+  return authFetch<RecipeDetailResponse>(`/api/costing/recipes/${recipeId}`, {
+    method: "GET",
+  })
+}
+
+export async function updateRecipe(
+  recipeId: string,
+  payload: RecipeUpdatePayload
+): Promise<RecipeDetailResponse> {
+  return authFetch<RecipeDetailResponse>(`/api/costing/recipes/${recipeId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function duplicateRecipe(
+  recipeId: string,
+  payload?: RecipeDuplicatePayload | null
+): Promise<RecipeDetailResponse> {
+  return authFetch<RecipeDetailResponse>(`/api/costing/recipes/${recipeId}/duplicate`, {
+    method: "POST",
+    body: JSON.stringify(payload ?? {}),
+  })
+}
+
+export async function deleteRecipe(
+  recipeId: string
+): Promise<{ success: boolean }> {
+  return authFetch<{ success: boolean }>(`/api/costing/recipes/${recipeId}`, {
+    method: "DELETE",
   })
 }
 

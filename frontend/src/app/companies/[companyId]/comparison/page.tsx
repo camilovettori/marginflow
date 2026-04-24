@@ -333,17 +333,6 @@ export default function CompanyComparisonPage() {
         label="Portfolio benchmarking"
         title="Company Comparison"
         subtitle="Benchmark the selected company against the full tenant portfolio and see where it is outperforming or falling behind."
-        companyName={selectedCompany?.name ?? "Company"}
-        companyMeta={
-          rankedCompanies.length
-            ? `Rank ${selectedRevenueRankNote} out of ${rankedCompanies.length} companies.`
-            : "Portfolio ranking will appear once tenant companies are loaded."
-        }
-        companyBadge={
-          <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
-            {bestCompany ? `Leader: ${bestCompany.name}` : "Portfolio view"}
-          </span>
-        }
       />
 
       <div className="hidden flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

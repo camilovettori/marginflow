@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
@@ -30,6 +30,11 @@ import {
   X,
 } from "lucide-react"
 import WorkspacePageHeader from "@/components/workspace-page-header"
+import {
+  formatDateLong,
+  getCurrentWeekEndingSundayInputValue,
+  getWeekInfo,
+} from "@/lib/report-utils"
 
 function fmtMoney(value: number) {
   return new Intl.NumberFormat("en-IE", {
@@ -44,38 +49,19 @@ function fmtPct(value: number) {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return "-"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return new Intl.DateTimeFormat("en-IE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d)
-}
-
-function formatShortDate(value?: string | null) {
-  if (!value) return "-"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return new Intl.DateTimeFormat("en-IE", {
-    day: "2-digit",
-    month: "short",
-  }).format(d)
+  return value ? formatDateLong(value) : "-"
 }
 
 function buildWeekMainLabel(report: WeeklyReportListItem) {
   if (report.week_start && report.week_end) {
-    return `${formatShortDate(report.week_start)} → ${formatDate(report.week_end)}`
+    return `${formatDateLong(report.week_start)} \u2192 ${formatDateLong(report.week_end)}`
   }
   return formatDate(report.week_ending)
 }
 
 function buildWeekSubLabel(report: WeeklyReportListItem) {
-  if (report.iso_week && report.iso_year) {
-    return `Week ${report.iso_week} • ${report.iso_year}`
-  }
-  return "Weekly report"
+  const { isoWeek, isoYear } = getWeekInfo(report.week_ending)
+  return `Week ${isoWeek} \u00B7 ${isoYear}`
 }
 
 function computeNetProfit(report: WeeklyReportListItem) {
@@ -106,11 +92,7 @@ function getMarginBadgeClass(netMargin: number) {
 }
 
 function getTodayLocalISO() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = `${now.getMonth() + 1}`.padStart(2, "0")
-  const day = `${now.getDate()}`.padStart(2, "0")
-  return `${year}-${month}-${day}`
+  return getCurrentWeekEndingSundayInputValue()
 }
 
 export default function CompanyWeeklyReportsPage() {
@@ -308,7 +290,7 @@ export default function CompanyWeeklyReportsPage() {
           companyName={company?.name ?? "Selected Company"}
           companyMeta={
             uiSummary.total_reports > 0
-              ? `${uiSummary.total_reports} reports · ${uiSummary.imported_reports} imported`
+              ? `${uiSummary.total_reports} reports Â· ${uiSummary.imported_reports} imported`
               : "No weekly reports yet. Import or create the first report to unlock the portfolio view."
           }
           companyBadge={
@@ -822,3 +804,4 @@ export default function CompanyWeeklyReportsPage() {
     </>
   )
 }
+

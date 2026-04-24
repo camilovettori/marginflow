@@ -14,3 +14,6 @@ APP_SECRET = os.getenv("APP_SECRET", "dev-secret-change-me")
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError(f"DATABASE_URL não definido em {ENV_PATH}")
+
+UPLOADS_DIR = BACKEND_DIR / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)

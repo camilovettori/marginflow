@@ -2,9 +2,16 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111111;
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f4f5f7;
+  --color-border-tertiary: rgba(17, 17, 17, 0.08);
+  --color-text-primary: #111111;
+  --color-text-muted: #6b7280;
+  --color-accent-green: #639922;
   --font-geist-sans: Arial, Helvetica, sans-serif;
   --font-geist-mono: "SFMono-Regular", Consolas, monospace;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -16,13 +23,35 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #0b0c0f;
     --foreground: #ededed;
+    --color-background-primary: #111318;
+    --color-background-secondary: #171a21;
+    --color-border-tertiary: rgba(255, 255, 255, 0.08);
+    --color-text-primary: #f3f4f6;
+    --color-text-muted: #9ca3af;
+    --color-accent-green: #9bbd63;
+    color-scheme: dark;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@page {
+  size: auto;
+  margin: 12mm;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
 }

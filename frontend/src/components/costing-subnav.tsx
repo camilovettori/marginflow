@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
-import { BookOpen, FileText, Package, Scale } from "lucide-react"
+import { BookOpen, FileText, Package } from "lucide-react"
 
 type CostingSubnavProps = {
   companyId: string
@@ -47,12 +47,6 @@ export default function CostingSubnav({ companyId }: CostingSubnavProps) {
   const baseHref = `/companies/${companyId}/costing`
 
   const items: CostingNavItem[] = [
-    {
-      href: baseHref,
-      label: "Overview",
-      icon: <Scale size={15} />,
-      match: (currentPath) => currentPath === baseHref,
-    },
     {
       href: `${baseHref}/purchase-invoices`,
       label: "Purchase Invoices",

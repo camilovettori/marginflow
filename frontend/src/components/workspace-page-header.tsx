@@ -16,9 +16,6 @@ export default function WorkspacePageHeader({
   label,
   title,
   subtitle,
-  companyName,
-  companyMeta,
-  companyBadge,
   actions,
 }: WorkspacePageHeaderProps) {
   return (
@@ -41,24 +38,6 @@ export default function WorkspacePageHeader({
 
         <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
           {actions ? <div className="flex flex-wrap items-center gap-3">{actions}</div> : null}
-
-          {companyName ? (
-            <div className="min-w-[250px] rounded-[24px] border border-zinc-200 bg-white px-4 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">
-                  Selected company
-                </p>
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-700">
-                  Active
-                </span>
-              </div>
-              <p className="mt-2 text-lg font-semibold tracking-tight text-zinc-950">{companyName}</p>
-              {companyMeta ? (
-                <p className="mt-1.5 text-sm leading-6 text-zinc-500">{companyMeta}</p>
-              ) : null}
-              {companyBadge ? <div className="mt-3">{companyBadge}</div> : null}
-            </div>
-          ) : null}
         </div>
       </div>
     </div>

@@ -45,6 +45,10 @@ class PurchaseInvoiceCreate(BaseModel):
     lines: list[PurchaseInvoiceLineCreate] = Field(min_length=1)
 
 
+class PurchaseInvoiceUpdate(PurchaseInvoiceCreate):
+    pass
+
+
 class PurchaseInvoiceLineResponse(BaseModel):
     id: UUID
     ingredient_id: UUID | None = None

@@ -1,57 +1,25 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
-  createCompanyPurchaseInvoice,
+  deleteCompanyPurchaseInvoice,
   getCompanyPurchaseInvoices,
   type PurchaseInvoice,
-  type PurchaseInvoiceCreatePayload,
-  type PurchaseInvoiceLinePayload,
   type PurchaseInvoiceListResponse,
 } from "@/services/api"
+import ConfirmDialog from "@/components/confirm-dialog"
 import CostingWorkspacePage from "@/components/costing-workspace-page"
-import { Calculator, FileText, Plus, Save, Trash2 } from "lucide-react"
+import InvoiceCreateSlideOver from "@/components/invoice-create-slide-over"
+import SlideOver from "@/components/slide-over"
+import { Pencil, Plus, Search, Trash2 } from "lucide-react"
 
-type InvoiceLineDraft = PurchaseInvoiceLinePayload
-
-function createEmptyLine(): InvoiceLineDraft {
-  return {
-    ingredient_name: "",
-    ingredient_sku: "",
-    category: "",
-    quantity_purchased: 1,
-    purchase_unit: "kg",
-    pack_size_value: undefined,
-    pack_size_unit: "",
-    net_quantity_for_costing: 1000,
-    costing_unit: "g",
-    line_total_ex_vat: 0,
-    vat_rate: 0,
-    line_total_inc_vat: 0,
-    brand: "",
-    supplier_product_name: "",
-  }
-}
-
-function fmtMoney(value: number) {
+function fmtMoney(v: number) {
   return new Intl.NumberFormat("en-IE", {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 2,
-  }).format(value ?? 0)
-}
-
-function fmtUnitCost(value: number, unit: string) {
-  const absoluteValue = Math.abs(value ?? 0)
-  const fractionDigits = absoluteValue > 0 && absoluteValue < 0.01 ? 6 : 2
-
-  return `${new Intl.NumberFormat("en-IE", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  }).format(value ?? 0)} / ${unit}`
+  }).format(v ?? 0)
 }
 
 function formatDate(value?: string | null) {
@@ -65,69 +33,34 @@ function formatDate(value?: string | null) {
   }).format(d)
 }
 
-function round2(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100
-}
-
-function round6(value: number) {
-  return Math.round((value + Number.EPSILON) * 1_000_000) / 1_000_000
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
-  type?: string
-}) {
+function StatusBadge({ status }: { status: string }) {
+  if (status === "posted") {
+    return (
+      <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+        Posted
+      </span>
+    )
+  }
   return (
-    <div>
-      <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
-      />
-    </div>
+    <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+      Draft
+    </span>
   )
 }
 
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  options: Array<{ value: string; label: string }>
-}) {
+function SkeletonRow() {
   return (
-    <div>
-      <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
+    <tr>
+      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+        <td key={i} className="px-4 py-3">
+          <div className="h-4 animate-pulse rounded bg-zinc-100" />
+        </td>
+      ))}
+    </tr>
   )
 }
+
+type FilterStatus = "all" | "draft" | "posted"
 
 export default function PurchaseInvoicesPage() {
   const params = useParams()
@@ -136,20 +69,14 @@ export default function PurchaseInvoicesPage() {
 
   const [data, setData] = useState<PurchaseInvoiceListResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-
-  const [supplierName, setSupplierName] = useState("")
-  const [invoiceNumber, setInvoiceNumber] = useState("")
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
-  const [dueDate, setDueDate] = useState("")
-  const [currency, setCurrency] = useState("EUR")
-  const [notes, setNotes] = useState("")
-  const [attachmentName, setAttachmentName] = useState("")
-  const [vatIncluded, setVatIncluded] = useState(false)
-  const [status, setStatus] = useState<"draft" | "posted">("posted")
-  const [lines, setLines] = useState<InvoiceLineDraft[]>([createEmptyLine()])
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>("all")
+  const [search, setSearch] = useState("")
+  const [showCreate, setShowCreate] = useState(false)
+  const [editingInvoice, setEditingInvoice] = useState<PurchaseInvoice | null>(null)
+  const [selectedInvoice, setSelectedInvoice] = useState<PurchaseInvoice | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<PurchaseInvoice | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   async function loadInvoices() {
     try {
@@ -179,493 +106,370 @@ export default function PurchaseInvoicesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId])
 
-  const computedLines = useMemo(
-    () =>
-      lines.map((line) => {
-        const exVat = Number(line.line_total_ex_vat || 0)
-        const vatRate = Number(line.vat_rate || 0)
-        const incVat = round2(exVat * (1 + vatRate / 100))
-        const netQty = Number(line.net_quantity_for_costing || 0)
-        const normalizedEx = netQty > 0 ? round6(exVat / netQty) : 0
-        const normalizedInc = netQty > 0 ? round6(incVat / netQty) : 0
-        return {
-          ...line,
-          line_total_inc_vat: incVat,
-          normalized_ex_vat: normalizedEx,
-          normalized_inc_vat: normalizedInc,
-          vat_amount: round2(incVat - exVat),
-        }
-      }),
-    [lines]
-  )
-
-  const totals = useMemo(() => {
-    const subtotal = round2(computedLines.reduce((sum, line) => sum + (line.line_total_ex_vat || 0), 0))
-    const vatTotal = round2(computedLines.reduce((sum, line) => sum + line.vat_amount, 0))
-    const totalInc = round2(computedLines.reduce((sum, line) => sum + (line.line_total_inc_vat || 0), 0))
-    return { subtotal, vatTotal, totalInc }
-  }, [computedLines])
-
-  function updateLine(index: number, patch: Partial<InvoiceLineDraft>) {
-    setLines((current) =>
-      current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line))
-    )
-  }
-
-  function addLine() {
-    setLines((current) => [...current, createEmptyLine()])
-  }
-
-  function removeLine(index: number) {
-    setLines((current) => (current.length === 1 ? current : current.filter((_, lineIndex) => lineIndex !== index)))
-  }
-
-  function resetForm() {
-    setSupplierName("")
-    setInvoiceNumber("")
-    setInvoiceDate(new Date().toISOString().slice(0, 10))
-    setDueDate("")
-    setCurrency("EUR")
-    setNotes("")
-    setAttachmentName("")
-    setVatIncluded(false)
-    setStatus("posted")
-    setLines([createEmptyLine()])
-  }
-
-  async function handleCreateInvoice() {
+  async function handleDeleteInvoice() {
+    if (!deleteTarget) return
     try {
-      if (!supplierName.trim()) throw new Error("Supplier name is required.")
-      if (!invoiceNumber.trim()) throw new Error("Invoice number is required.")
-      if (!invoiceDate.trim()) throw new Error("Invoice date is required.")
-      if (computedLines.some((line) => !line.ingredient_name.trim())) {
-        throw new Error("Each invoice line needs an ingredient name.")
+      setDeleteBusy(true)
+      await deleteCompanyPurchaseInvoice(deleteTarget.id)
+      if (selectedInvoice?.id === deleteTarget.id) {
+        setSelectedInvoice(null)
       }
-      if (computedLines.some((line) => Number(line.net_quantity_for_costing || 0) <= 0)) {
-        throw new Error("Each invoice line needs a net quantity for costing greater than zero.")
+      if (editingInvoice?.id === deleteTarget.id) {
+        setEditingInvoice(null)
       }
-
-      setSaving(true)
-      setError(null)
-      setSuccessMessage(null)
-
-      const payload: PurchaseInvoiceCreatePayload = {
-        supplier_name: supplierName.trim(),
-        invoice_number: invoiceNumber.trim(),
-        invoice_date: invoiceDate,
-        due_date: dueDate.trim() || null,
-        currency: currency.trim().toUpperCase(),
-        notes: notes.trim() || null,
-        attachment_name: attachmentName.trim() || null,
-        vat_included: vatIncluded,
-        subtotal_ex_vat: totals.subtotal,
-        vat_total: totals.vatTotal,
-        total_inc_vat: totals.totalInc,
-        status,
-        lines: computedLines.map((line) => ({
-          ingredient_name: line.ingredient_name.trim(),
-          ingredient_sku: line.ingredient_sku?.trim() || null,
-          category: line.category?.trim() || null,
-          quantity_purchased: Number(line.quantity_purchased || 0),
-          purchase_unit: line.purchase_unit.trim().toLowerCase(),
-          pack_size_value: line.pack_size_value ? Number(line.pack_size_value) : null,
-          pack_size_unit: line.pack_size_unit?.trim().toLowerCase() || null,
-          net_quantity_for_costing: Number(line.net_quantity_for_costing || 0),
-          costing_unit: line.costing_unit.trim().toLowerCase(),
-          line_total_ex_vat: Number(line.line_total_ex_vat || 0),
-          vat_rate: Number(line.vat_rate || 0),
-          line_total_inc_vat: Number(line.line_total_inc_vat || 0),
-          brand: line.brand?.trim() || null,
-          supplier_product_name: line.supplier_product_name?.trim() || null,
-        })),
-      }
-
-      const created = await createCompanyPurchaseInvoice(companyId, payload)
-      setSuccessMessage(
-        `Invoice ${created.invoice_number} saved with ${created.lines.length} line${created.lines.length === 1 ? "" : "s"} and ${created.status === "posted" ? "ingredient prices refreshed." : "draft status retained."}`
-      )
-      resetForm()
+      setDeleteTarget(null)
       await loadInvoices()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save purchase invoice.")
+      setError(err instanceof Error ? err.message : "Failed to delete invoice.")
     } finally {
-      setSaving(false)
+      setDeleteBusy(false)
     }
   }
+
+  const filtered = (data?.invoices ?? []).filter((inv) => {
+    if (filterStatus !== "all" && inv.status !== filterStatus) return false
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      return (
+        inv.supplier_name.toLowerCase().includes(q) ||
+        inv.invoice_number.toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
+
+  const filters: { label: string; value: FilterStatus }[] = [
+    { label: "All", value: "all" },
+    { label: "Draft", value: "draft" },
+    { label: "Posted", value: "posted" },
+  ]
 
   return (
     <CostingWorkspacePage
       companyId={companyId}
       title="Purchase Invoices"
-      subtitle="Register supplier invoices for ingredients, production inputs, and packaging so the costing engine can calculate normalized live costs."
-      companyMeta="Posted invoices update ingredient latest paid price automatically. Drafts stay in the register without changing live costing."
+      subtitle="Register supplier invoices so the costing engine can maintain normalized ingredient prices."
       actions={
         <button
-          onClick={handleCreateInvoice}
-          disabled={saving || loading}
-          className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={() => setShowCreate(true)}
+          className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90"
         >
-          <Save size={16} />
-          {saving ? "Saving..." : "Save invoice"}
+          <Plus size={16} />
+          New invoice
         </button>
       }
     >
       {error ? (
-        <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-5 text-rose-700 shadow-sm">
+        <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 shadow-sm">
           {error}
         </div>
       ) : null}
 
-      {successMessage ? (
-        <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-emerald-700 shadow-sm">
-          {successMessage}
-        </div>
-      ) : null}
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-4">
-          <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-zinc-900 p-3 text-white">
-                <FileText size={18} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Invoice header</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-                  Capture supplier purchase headers and costing lines
-                </h2>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
-              <Field label="Supplier name" value={supplierName} onChange={setSupplierName} placeholder="Musgraves, bakery supplier, roastery..." />
-              <Field label="Invoice number" value={invoiceNumber} onChange={setInvoiceNumber} placeholder="INV-2026-041" />
-              <Field label="Invoice date" type="date" value={invoiceDate} onChange={setInvoiceDate} />
-              <Field label="Due date" type="date" value={dueDate} onChange={setDueDate} />
-              <SelectField
-                label="Currency"
-                value={currency}
-                onChange={setCurrency}
-                options={[
-                  { value: "EUR", label: "EUR" },
-                  { value: "GBP", label: "GBP" },
-                  { value: "USD", label: "USD" },
-                ]}
-              />
-              <SelectField
-                label="Status"
-                value={status}
-                onChange={(value) => setStatus(value as "draft" | "posted")}
-                options={[
-                  { value: "posted", label: "Posted" },
-                  { value: "draft", label: "Draft" },
-                ]}
-              />
-              <Field label="Attachment placeholder" value={attachmentName} onChange={setAttachmentName} placeholder="invoice-apr-23.pdf" />
-              <div className="flex items-end">
-                <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
-                  <input
-                    type="checkbox"
-                    checked={vatIncluded}
-                    onChange={(event) => setVatIncluded(event.target.checked)}
-                    className="h-4 w-4 rounded border-zinc-300"
-                  />
-                  VAT included on supplier document
-                </label>
-              </div>
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-zinc-700">Notes</label>
-                <textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Delivery notes, quality flags, supplier comments..."
-                  className="min-h-[120px] w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-            <div className="flex items-center justify-between gap-4 border-b border-zinc-100 px-6 py-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Invoice lines</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">Normalize each ingredient purchase</h2>
-              </div>
+      <div className="rounded-[28px] border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+        <div className="flex flex-col gap-3 border-b border-zinc-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            {filters.map((f) => (
               <button
-                onClick={addLine}
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950"
+                key={f.value}
+                onClick={() => setFilterStatus(f.value)}
+                className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+                  filterStatus === f.value
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+                }`}
               >
-                <Plus size={16} />
-                Add line
+                {f.label}
               </button>
-            </div>
-
-            <div className="space-y-4 p-5">
-              {computedLines.map((line, index) => (
-                <div key={index} className="rounded-[24px] border border-zinc-200 bg-zinc-50/70 p-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="text-sm font-semibold text-zinc-950">Line {index + 1}</p>
-                    <button
-                      onClick={() => removeLine(index)}
-                      disabled={computedLines.length === 1}
-                      className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Trash2 size={14} />
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <Field
-                      label="Ingredient name"
-                      value={line.ingredient_name}
-                      onChange={(value) => updateLine(index, { ingredient_name: value })}
-                      placeholder="Strong flour, butter, coffee beans..."
-                    />
-                    <Field
-                      label="Supplier product name"
-                      value={line.supplier_product_name ?? ""}
-                      onChange={(value) => updateLine(index, { supplier_product_name: value })}
-                      placeholder="Supplier line description"
-                    />
-                    <Field
-                      label="Ingredient SKU"
-                      value={line.ingredient_sku ?? ""}
-                      onChange={(value) => updateLine(index, { ingredient_sku: value })}
-                      placeholder="Optional SKU"
-                    />
-                    <Field
-                      label="Category"
-                      value={line.category ?? ""}
-                      onChange={(value) => updateLine(index, { category: value })}
-                      placeholder="Flour, dairy, coffee..."
-                    />
-                    <Field
-                      label="Quantity purchased"
-                      type="number"
-                      value={String(line.quantity_purchased)}
-                      onChange={(value) => updateLine(index, { quantity_purchased: Number(value || 0) })}
-                    />
-                    <SelectField
-                      label="Purchase unit"
-                      value={line.purchase_unit}
-                      onChange={(value) => updateLine(index, { purchase_unit: value })}
-                      options={[
-                        { value: "kg", label: "kg" },
-                        { value: "g", label: "g" },
-                        { value: "l", label: "l" },
-                        { value: "ml", label: "ml" },
-                        { value: "unit", label: "unit" },
-                        { value: "pack", label: "pack" },
-                        { value: "box", label: "box" },
-                      ]}
-                    />
-                    <Field
-                      label="Pack size value"
-                      type="number"
-                      value={line.pack_size_value != null ? String(line.pack_size_value) : ""}
-                      onChange={(value) => updateLine(index, { pack_size_value: value ? Number(value) : undefined })}
-                      placeholder="Optional"
-                    />
-                    <SelectField
-                      label="Pack size unit"
-                      value={line.pack_size_unit ?? ""}
-                      onChange={(value) => updateLine(index, { pack_size_unit: value })}
-                      options={[
-                        { value: "", label: "Optional" },
-                        { value: "kg", label: "kg" },
-                        { value: "g", label: "g" },
-                        { value: "l", label: "l" },
-                        { value: "ml", label: "ml" },
-                        { value: "unit", label: "unit" },
-                      ]}
-                    />
-                    <Field
-                      label="Net quantity for costing"
-                      type="number"
-                      value={String(line.net_quantity_for_costing)}
-                      onChange={(value) => updateLine(index, { net_quantity_for_costing: Number(value || 0) })}
-                    />
-                    <SelectField
-                      label="Costing unit"
-                      value={line.costing_unit}
-                      onChange={(value) => updateLine(index, { costing_unit: value })}
-                      options={[
-                        { value: "g", label: "g" },
-                        { value: "ml", label: "ml" },
-                        { value: "unit", label: "unit" },
-                      ]}
-                    />
-                    <Field
-                      label="Line total ex VAT"
-                      type="number"
-                      value={String(line.line_total_ex_vat)}
-                      onChange={(value) => updateLine(index, { line_total_ex_vat: Number(value || 0) })}
-                    />
-                    <Field
-                      label="VAT rate %"
-                      type="number"
-                      value={String(line.vat_rate)}
-                      onChange={(value) => updateLine(index, { vat_rate: Number(value || 0) })}
-                    />
-                    <Field
-                      label="Brand"
-                      value={line.brand ?? ""}
-                      onChange={(value) => updateLine(index, { brand: value })}
-                      placeholder="Optional brand"
-                    />
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Line inc VAT</p>
-                      <p className="mt-2 text-lg font-semibold text-zinc-950">{fmtMoney(line.line_total_inc_vat ?? 0)}</p>
-                    </div>
-                    <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Normalized ex VAT</p>
-                      <p className="mt-2 text-lg font-semibold text-zinc-950">
-                        {fmtUnitCost(line.normalized_ex_vat, line.costing_unit)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Normalized inc VAT</p>
-                      <p className="mt-2 text-lg font-semibold text-zinc-950">
-                        {fmtUnitCost(line.normalized_inc_vat, line.costing_unit)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
+            <Search size={14} className="shrink-0 text-zinc-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search supplier or invoice #..."
+              className="w-56 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+            />
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-[28px] border border-zinc-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfbfc_100%)] p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
-                <Calculator size={18} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Live totals</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">Invoice costing summary</h2>
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-                <p className="text-sm font-medium text-zinc-500">Subtotal ex VAT</p>
-                <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">{fmtMoney(totals.subtotal)}</p>
-              </div>
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-                <p className="text-sm font-medium text-zinc-500">VAT total</p>
-                <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">{fmtMoney(totals.vatTotal)}</p>
-              </div>
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-                <p className="text-sm font-medium text-zinc-500">Total inc VAT</p>
-                <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">{fmtMoney(totals.totalInc)}</p>
-              </div>
-            </div>
-
-            <p className="mt-5 text-sm leading-6 text-zinc-500">
-              Posted invoices update the latest ingredient price memory. Drafts stay visible in the register without moving live costing.
-            </p>
-          </div>
-
-          <div className="rounded-[28px] border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-            <div className="border-b border-zinc-100 px-6 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Invoice register</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">Recent purchase invoices</h2>
-            </div>
-
-            {loading ? (
-              <div className="p-6 text-sm text-zinc-500">Loading purchase invoices...</div>
-            ) : data && data.invoices.length > 0 ? (
-              <div className="space-y-4 p-5">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-                    <p className="text-sm font-medium text-zinc-500">Invoices tracked</p>
-                    <p className="mt-2 text-2xl font-semibold text-zinc-950">{data.total_invoices}</p>
-                  </div>
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-                    <p className="text-sm font-medium text-zinc-500">Total spend ex VAT</p>
-                    <p className="mt-2 text-2xl font-semibold text-zinc-950">{fmtMoney(data.total_spend_ex_vat)}</p>
-                  </div>
-                </div>
-
-                {data.invoices.map((invoice: PurchaseInvoice) => (
-                  <div key={invoice.id} className="rounded-[24px] border border-zinc-200 bg-white p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">{invoice.supplier_name}</p>
-                        <h3 className="mt-2 text-lg font-semibold text-zinc-950">{invoice.invoice_number}</h3>
-                        <p className="mt-1 text-sm text-zinc-500">
-                          {formatDate(invoice.invoice_date)} - {invoice.lines.length} line{invoice.lines.length === 1 ? "" : "s"}
-                        </p>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-zinc-50 text-left">
+              <tr>
+                <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Supplier
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Invoice #
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Date
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Lines
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Ex VAT
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Inc VAT
+                </th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : filtered.length > 0 ? (
+                filtered.map((inv) => (
+                  <tr
+                    key={inv.id}
+                    onClick={() => setSelectedInvoice(inv)}
+                    className="cursor-pointer border-t border-zinc-100 transition hover:bg-zinc-50"
+                  >
+                    <td className="px-6 py-3.5 font-medium text-zinc-950">{inv.supplier_name}</td>
+                    <td className="px-4 py-3.5 text-zinc-700">{inv.invoice_number}</td>
+                    <td className="px-4 py-3.5 text-zinc-600">{formatDate(inv.invoice_date)}</td>
+                    <td className="px-4 py-3.5 text-right text-zinc-600">{inv.lines.length}</td>
+                    <td className="px-4 py-3.5 text-right font-medium text-zinc-950">
+                      {fmtMoney(inv.subtotal_ex_vat)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-zinc-600">
+                      {fmtMoney(inv.total_inc_vat)}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <StatusBadge status={inv.status} />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingInvoice(inv)
+                          }}
+                          className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950"
+                        >
+                          <Pencil size={12} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteTarget(inv)
+                          }}
+                          className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
                       </div>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
-                          invoice.status === "posted"
-                            ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border border-amber-200 bg-amber-50 text-amber-700"
-                        }`}
-                      >
-                        {invoice.status}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="px-6 py-16 text-center text-sm text-zinc-500">
+                    {data?.invoices.length === 0 ? (
+                      <span>
+                        No invoices yet.{" "}
+                        <button
+                          onClick={() => setShowCreate(true)}
+                          className="font-medium text-zinc-950 underline underline-offset-2"
+                        >
+                          Add your first invoice
+                        </button>
                       </span>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-                        <p className="text-sm font-medium text-zinc-500">Subtotal ex VAT</p>
-                        <p className="mt-2 text-lg font-semibold text-zinc-950">{fmtMoney(invoice.subtotal_ex_vat)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-                        <p className="text-sm font-medium text-zinc-500">VAT total</p>
-                        <p className="mt-2 text-lg font-semibold text-zinc-950">{fmtMoney(invoice.vat_total)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-                        <p className="text-sm font-medium text-zinc-500">Total inc VAT</p>
-                        <p className="mt-2 text-lg font-semibold text-zinc-950">{fmtMoney(invoice.total_inc_vat)}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead className="bg-zinc-50 text-left text-zinc-500">
-                          <tr>
-                            <th className="px-4 py-3 font-medium">Ingredient</th>
-                            <th className="px-4 py-3 font-medium text-right">Net qty</th>
-                            <th className="px-4 py-3 font-medium">Costing unit</th>
-                            <th className="px-4 py-3 font-medium text-right">Ex VAT</th>
-                            <th className="px-4 py-3 font-medium text-right">Normalized</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {invoice.lines.map((line) => (
-                            <tr key={line.id} className="border-t border-zinc-100">
-                              <td className="px-4 py-3 text-zinc-900">{line.ingredient_name}</td>
-                              <td className="px-4 py-3 text-right text-zinc-700">{line.net_quantity_for_costing}</td>
-                              <td className="px-4 py-3 text-zinc-700">{line.costing_unit}</td>
-                              <td className="px-4 py-3 text-right text-zinc-700">{fmtMoney(line.line_total_ex_vat)}</td>
-                              <td className="px-4 py-3 text-right text-zinc-700">
-                                {fmtUnitCost(line.normalized_unit_cost_ex_vat, line.costing_unit)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-8 text-center text-sm text-zinc-500">
-                No purchase invoices captured yet. Save the first supplier invoice to start ingredient price tracking.
-              </div>
-            )}
-          </div>
+                    ) : (
+                      "No invoices match the current filter."
+                    )}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+
+        {!loading && data && data.invoices.length > 0 ? (
+          <div className="flex items-center justify-between border-t border-zinc-100 px-6 py-3 text-xs text-zinc-500">
+            <span>
+              {filtered.length} invoice{filtered.length === 1 ? "" : "s"}
+              {filterStatus !== "all" ? ` - ${filterStatus}` : ""}
+            </span>
+            <span>
+              Total spend ex VAT:{" "}
+              <span className="font-semibold text-zinc-950">
+                {fmtMoney(data.total_spend_ex_vat)}
+              </span>
+            </span>
+          </div>
+        ) : null}
       </div>
+
+      <InvoiceCreateSlideOver
+        companyId={companyId}
+        open={showCreate || editingInvoice !== null}
+        mode={editingInvoice ? "edit" : "create"}
+        invoice={editingInvoice}
+        onClose={() => {
+          setShowCreate(false)
+          setEditingInvoice(null)
+        }}
+        onSaved={async () => {
+          setShowCreate(false)
+          setEditingInvoice(null)
+          setSelectedInvoice(null)
+          await loadInvoices()
+        }}
+      />
+
+      <SlideOver
+        open={selectedInvoice !== null}
+        onClose={() => setSelectedInvoice(null)}
+        title={
+          selectedInvoice ? (
+            <span className="flex items-center gap-3">
+              <span>{selectedInvoice.invoice_number}</span>
+              <StatusBadge status={selectedInvoice.status} />
+            </span>
+          ) : (
+            ""
+          )
+        }
+      >
+        {selectedInvoice ? (
+          <div>
+            <div className="border-b border-zinc-100 px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-950">{selectedInvoice.supplier_name}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {formatDate(selectedInvoice.invoice_date)}
+                    {selectedInvoice.due_date ? ` - Due ${formatDate(selectedInvoice.due_date)}` : ""}
+                    {selectedInvoice.notes ? ` - ${selectedInvoice.notes}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingInvoice(selectedInvoice)
+                      setSelectedInvoice(null)
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950"
+                  >
+                    <Pencil size={12} />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(selectedInvoice)}
+                    className="inline-flex items-center gap-1.5 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.05em] text-zinc-400">
+                    Ex VAT
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-zinc-950">
+                    {fmtMoney(selectedInvoice.subtotal_ex_vat)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.05em] text-zinc-400">
+                    VAT
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-zinc-950">
+                    {fmtMoney(selectedInvoice.vat_total)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.05em] text-zinc-400">
+                    Inc VAT
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-zinc-950">
+                    {fmtMoney(selectedInvoice.total_inc_vat)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 pt-5 pb-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                Ingredient lines
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-zinc-50 text-left">
+                  <tr>
+                    <th className="px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                      Ingredient
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                      Net qty
+                    </th>
+                    <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                      Unit
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                      Ex VAT
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-zinc-400">
+                      /unit
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedInvoice.lines.map((l) => (
+                    <tr key={l.id} className="border-t border-zinc-100">
+                      <td className="px-6 py-3 font-medium text-zinc-900">{l.ingredient_name}</td>
+                      <td className="px-4 py-3 text-right text-zinc-700">
+                        {l.net_quantity_for_costing}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-600">{l.costing_unit}</td>
+                      <td className="px-4 py-3 text-right text-zinc-700">
+                        {fmtMoney(l.line_total_ex_vat)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-zinc-500">
+                        {l.normalized_unit_cost_ex_vat?.toFixed(6) ?? "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </SlideOver>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete invoice?"
+        description={
+          deleteTarget
+            ? `Deleting ${deleteTarget.invoice_number} may change latest ingredient pricing. MarginFlow will recalculate affected ingredient memory.`
+            : ""
+        }
+        confirmLabel="Delete invoice"
+        destructive
+        busy={deleteBusy}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteInvoice}
+      />
     </CostingWorkspacePage>
   )
 }

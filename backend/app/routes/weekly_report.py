@@ -41,6 +41,11 @@ def get_week_end_sunday(week_ending: date) -> date:
     return start + timedelta(days=6)
 
 
+def normalize_week_ending_to_sunday(week_ending: date) -> date:
+    """Clamp any date to the Sunday that ends its Monday-Sunday reporting week."""
+    return get_week_end_sunday(week_ending)
+
+
 def build_insights(
     *,
     labour_pct: float,
@@ -93,9 +98,9 @@ def serialize_weekly_report(
     net_profit = float(derived["net_profit"])
     net_margin_pct = float(derived["net_margin_pct"])
 
-    iso_year, iso_week, _ = wr.week_ending.isocalendar()
     week_start = get_week_start_monday(wr.week_ending)
     week_end = get_week_end_sunday(wr.week_ending)
+    iso_year, iso_week, _ = week_end.isocalendar()
 
     insights = build_insights(
         labour_pct=labour_pct,
@@ -150,12 +155,14 @@ def create_weekly_report(
     if not company:
         raise HTTPException(status_code=400, detail="Company inválida para este tenant")
 
+    normalized_week_ending = normalize_week_ending_to_sunday(payload.week_ending)
+
     existing = (
         db.query(WeeklyReport)
         .filter(
             WeeklyReport.tenant_id == tenant_id,
             WeeklyReport.company_id == payload.company_id,
-            WeeklyReport.week_ending == payload.week_ending,
+            WeeklyReport.week_ending == normalized_week_ending,
         )
         .first()
     )
@@ -165,7 +172,7 @@ def create_weekly_report(
     wr = WeeklyReport(
         tenant_id=tenant_id,
         company_id=payload.company_id,
-        week_ending=payload.week_ending,
+        week_ending=normalized_week_ending,
         sales_inc_vat=payload.sales_inc_vat,
         sales_ex_vat=payload.sales_ex_vat,
         wages=payload.wages,
@@ -351,12 +358,14 @@ def update_weekly_report(
     if not company:
         raise HTTPException(status_code=400, detail="Company inválida para este tenant")
 
+    normalized_week_ending = normalize_week_ending_to_sunday(payload.week_ending)
+
     existing = (
         db.query(WeeklyReport)
         .filter(
             WeeklyReport.tenant_id == tenant_id,
             WeeklyReport.company_id == payload.company_id,
-            WeeklyReport.week_ending == payload.week_ending,
+            WeeklyReport.week_ending == normalized_week_ending,
             WeeklyReport.id != weekly_report_id,
         )
         .first()
@@ -365,7 +374,7 @@ def update_weekly_report(
         raise HTTPException(status_code=409, detail="Weekly report já existe para esta semana")
 
     wr.company_id = payload.company_id
-    wr.week_ending = payload.week_ending
+    wr.week_ending = normalized_week_ending
     wr.sales_inc_vat = payload.sales_inc_vat
     wr.sales_ex_vat = payload.sales_ex_vat
     wr.wages = payload.wages

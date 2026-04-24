@@ -14,6 +14,7 @@ type CostingWorkspacePageProps = {
   companyMeta?: ReactNode
   companyBadge?: ReactNode
   actions?: ReactNode
+  hero?: ReactNode
   children: ReactNode
 }
 
@@ -25,6 +26,7 @@ export default function CostingWorkspacePage({
   companyMeta = "Supplier pricing, ingredient cost memory, and recipe costing for this company.",
   companyBadge,
   actions,
+  hero,
   children,
 }: CostingWorkspacePageProps) {
   const router = useRouter()
@@ -78,6 +80,8 @@ export default function CostingWorkspacePage({
         }
         actions={actions}
       />
+
+      {hero ?? null}
 
       <CostingSubnav companyId={companyId} />
 

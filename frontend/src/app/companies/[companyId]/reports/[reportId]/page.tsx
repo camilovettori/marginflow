@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
@@ -36,6 +36,13 @@ import {
   X,
 } from "lucide-react"
 import WorkspacePageHeader from "@/components/workspace-page-header"
+import {
+  buildWeekLabel as buildWeekLabelFromWeekEnding,
+  formatDateInput,
+  formatDateLong,
+  getWeekInfo,
+  normalizeWeekEndingToSunday,
+} from "@/lib/report-utils"
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-IE", {
@@ -50,78 +57,14 @@ function formatPct(value: number) {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return "-"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return new Intl.DateTimeFormat("en-IE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d)
-}
-
-function formatDateInput(value?: string | null) {
-  if (!value) return ""
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return ""
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
-
-function getISOWeekInfo(dateString: string) {
-  if (!dateString) return null
-
-  const date = new Date(`${dateString}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return null
-
-  const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = tmp.getUTCDay() || 7
-  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1))
-  const weekNo = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-
-  const monday = new Date(date)
-  const day = monday.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  monday.setDate(monday.getDate() + diff)
-
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-
-  return {
-    isoWeek: weekNo,
-    isoYear: tmp.getUTCFullYear(),
-    start: new Intl.DateTimeFormat("en-IE", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(monday),
-    end: new Intl.DateTimeFormat("en-IE", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(sunday),
-  }
+  return value ? formatDateLong(value) : "-"
 }
 
 function buildWeekLabel(report: WeeklyReportDetail | null) {
   if (!report) return "Weekly Report"
 
   if (report.iso_week && report.week_start && report.week_end) {
-    const start = new Intl.DateTimeFormat("en-IE", {
-      day: "2-digit",
-      month: "short",
-    }).format(new Date(report.week_start))
-
-    const end = new Intl.DateTimeFormat("en-IE", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(new Date(report.week_end))
-
-    return `ISO ${report.iso_week} • ${start} → ${end}`
+    return buildWeekLabelFromWeekEnding(report.week_ending)
   }
 
   return formatDate(report.week_ending)
@@ -265,7 +208,7 @@ function MoneyField({
     <div>
       <label className="mb-2 block text-sm font-medium text-zinc-700">{label}</label>
       <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
-        <span className="mr-2 text-sm text-zinc-500">€</span>
+        <span className="mr-2 text-sm text-zinc-500">â‚¬</span>
         <input
           type="number"
           step="0.01"
@@ -505,7 +448,7 @@ export default function WeeklyReportDetailPage() {
     loadReport()
   }, [reportId, companyId])
 
-  const isoWeekInfo = useMemo(() => getISOWeekInfo(form.week_ending), [form.week_ending])
+  const isoWeekInfo = useMemo(() => getWeekInfo(form.week_ending), [form.week_ending])
 
   const salesExVat = Number(form.sales_ex_vat || 0)
   const labourTotal = Number(form.wages || 0) + Number(form.holiday_pay || 0)
@@ -586,11 +529,11 @@ export default function WeeklyReportDetailPage() {
     const rows: Array<{ label: string; value: number }> = []
 
     ;(breakdown?.totals_by_type || []).forEach((row) => {
-      rows.push({ label: `Type · ${row.key}`, value: row.total })
+      rows.push({ label: `Type Â· ${row.key}`, value: row.total })
     })
 
     ;(breakdown?.totals_by_group || []).forEach((row) => {
-      rows.push({ label: `Group · ${row.key}`, value: row.total })
+      rows.push({ label: `Group Â· ${row.key}`, value: row.total })
     })
 
     return rows
@@ -603,7 +546,7 @@ export default function WeeklyReportDetailPage() {
       signals.push({
         text: "Strong week. Profitability is healthy and the business is operating inside a good efficiency range.",
         tooltip:
-          "Net Margin ≥18%: Net Profit ÷ Revenue × 100. The business is above the healthy threshold for weekly operations.",
+          "Net Margin â‰¥18%: Net Profit Ã· Revenue Ã— 100. The business is above the healthy threshold for weekly operations.",
       })
     }
 
@@ -611,7 +554,7 @@ export default function WeeklyReportDetailPage() {
       signals.push({
         text: "Gross margin is holding well. Core product margin looks solid this week.",
         tooltip:
-          "Gross Margin ≥65%: Gross Profit ÷ Revenue × 100. A strong product margin before labour and overhead costs.",
+          "Gross Margin â‰¥65%: Gross Profit Ã· Revenue Ã— 100. A strong product margin before labour and overhead costs.",
       })
     }
 
@@ -633,7 +576,7 @@ export default function WeeklyReportDetailPage() {
       signals.push({
         text: "Margin is under target. Focus on cost control, pricing discipline and operational efficiency.",
         tooltip:
-          "Net Margin <10%: Net Profit ÷ Revenue × 100. Currently below the 10% minimum healthy threshold — prioritize cost reduction.",
+          "Net Margin <10%: Net Profit Ã· Revenue Ã— 100. Currently below the 10% minimum healthy threshold â€” prioritize cost reduction.",
       })
     }
 
@@ -649,7 +592,7 @@ export default function WeeklyReportDetailPage() {
       signals.push({
         text: "Gross margin is softer than expected. Review food cost, supplier pricing and waste.",
         tooltip:
-          "Gross Margin <60%: Gross Profit ÷ Revenue × 100. Below 60% signals food cost pressure — review supplier pricing and waste.",
+          "Gross Margin <60%: Gross Profit Ã· Revenue Ã— 100. Below 60% signals food cost pressure â€” review supplier pricing and waste.",
       })
     }
 
@@ -690,8 +633,11 @@ export default function WeeklyReportDetailPage() {
   }
 
   async function saveReportSilently(): Promise<WeeklyReportDetail> {
+    const normalizedWeekEnding = formatDateInput(normalizeWeekEndingToSunday(form.week_ending))
+
     const payload: WeeklyReportUpdatePayload = {
       ...form,
+      week_ending: normalizedWeekEnding,
       food_cost: Number(computedFoodCost.toFixed(2)),
     }
 
@@ -769,7 +715,7 @@ export default function WeeklyReportDetailPage() {
       }
     }
 
-    // ── HEADER ────────────────────────────────────────────────────
+    // â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     doc.setFillColor(...c.dark)
     doc.rect(0, 0, pageW, 54, "F")
 
@@ -820,7 +766,7 @@ export default function WeeklyReportDetailPage() {
 
     y = 65
 
-    // ── KPI CARDS ─────────────────────────────────────────────────
+    // â”€â”€ KPI CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const kpiItems = [
       { label: "Sales ex VAT", value: formatMoney(salesExVat), sub: "Core revenue base", color: c.dark },
       {
@@ -865,7 +811,7 @@ export default function WeeklyReportDetailPage() {
 
     y += 40
 
-    // ── MARGIN SNAPSHOT ───────────────────────────────────────────
+    // â”€â”€ MARGIN SNAPSHOT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     doc.setFontSize(11)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...c.dark)
@@ -906,7 +852,7 @@ export default function WeeklyReportDetailPage() {
     doc.line(margin, y, margin + contentW, y)
     y += 10
 
-    // ── KEY SIGNALS ───────────────────────────────────────────────
+    // â”€â”€ KEY SIGNALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (goodSignals.length > 0 || warningSignals.length > 0) {
       needsNewPage(20)
       doc.setFontSize(11)
@@ -946,7 +892,7 @@ export default function WeeklyReportDetailPage() {
       y += 4
     }
 
-    // ── NOTES ─────────────────────────────────────────────────────
+    // â”€â”€ NOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (form.notes) {
       needsNewPage(20)
       doc.setFontSize(11)
@@ -968,7 +914,7 @@ export default function WeeklyReportDetailPage() {
       y += noteH + 10
     }
 
-    // ── GLOSSARY PAGE ─────────────────────────────────────────────
+    // â”€â”€ GLOSSARY PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     doc.addPage()
     doc.setFillColor(...c.dark)
     doc.rect(0, 0, pageW, 28, "F")
@@ -990,7 +936,7 @@ export default function WeeklyReportDetailPage() {
       },
       {
         term: "Gross Margin %",
-        def: "Gross Profit ÷ Revenue × 100. A gross margin above 65% is considered healthy for a café or bakery operation.",
+        def: "Gross Profit Ã· Revenue Ã— 100. A gross margin above 65% is considered healthy for a cafÃ© or bakery operation.",
       },
       {
         term: "Net Profit",
@@ -998,7 +944,7 @@ export default function WeeklyReportDetailPage() {
       },
       {
         term: "Net Margin %",
-        def: "Net Profit ÷ Revenue × 100. Target 18%+ for a healthy and well-managed operation.",
+        def: "Net Profit Ã· Revenue Ã— 100. Target 18%+ for a healthy and well-managed operation.",
       },
       {
         term: "Labour %",
@@ -1010,15 +956,15 @@ export default function WeeklyReportDetailPage() {
       },
       {
         term: "Fixed Costs",
-        def: "Recurring costs that remain constant regardless of revenue levels — rent, insurance, utilities.",
+        def: "Recurring costs that remain constant regardless of revenue levels â€” rent, insurance, utilities.",
       },
       {
         term: "Variable Costs",
-        def: "Costs that fluctuate with operational activity — packaging, cleaning supplies, and other day-to-day operational expenses.",
+        def: "Costs that fluctuate with operational activity â€” packaging, cleaning supplies, and other day-to-day operational expenses.",
       },
       {
         term: "AOV (Average Order Value)",
-        def: "Average revenue per transaction: Total Revenue ÷ Number of Transactions. A rising AOV signals effective upselling or pricing strength.",
+        def: "Average revenue per transaction: Total Revenue Ã· Number of Transactions. A rising AOV signals effective upselling or pricing strength.",
       },
       {
         term: "VAT Due",
@@ -1053,7 +999,7 @@ export default function WeeklyReportDetailPage() {
       y += rowH + 3
     })
 
-    // ── PAGE FOOTERS ──────────────────────────────────────────────
+    // â”€â”€ PAGE FOOTERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const totalPages = doc.getNumberOfPages()
     for (let p = 1; p <= totalPages; p++) {
       doc.setPage(p)
@@ -1062,7 +1008,7 @@ export default function WeeklyReportDetailPage() {
       doc.setTextColor(...c.zinc500)
       doc.setDrawColor(...c.zinc200)
       doc.line(margin, pageH - 12, pageW - margin, pageH - 12)
-      doc.text("MarginFlow — Confidential Weekly Report", margin, pageH - 7)
+      doc.text("MarginFlow â€” Confidential Weekly Report", margin, pageH - 7)
       const pLabel = `Page ${p} of ${totalPages}`
       doc.text(pLabel, pageW - margin - doc.getTextWidth(pLabel), pageH - 7)
     }
@@ -1277,7 +1223,7 @@ export default function WeeklyReportDetailPage() {
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 mb-5">
               <p className="text-xs font-medium text-zinc-500">Report</p>
               <p className="mt-1 text-sm font-semibold text-zinc-950">
-                {report.company_name} · {buildWeekLabel(report)}
+                {report.company_name} Â· {buildWeekLabel(report)}
               </p>
             </div>
 
@@ -1327,9 +1273,9 @@ export default function WeeklyReportDetailPage() {
       <WorkspacePageHeader
         label="Weekly report detail"
         title="Weekly Intelligence Report"
-        subtitle="Review, edit, and distribute the company’s weekly performance pack."
+        subtitle="Review, edit, and distribute the companyâ€™s weekly performance pack."
         companyName={report.company_name || "Selected Company"}
-        companyMeta={`${buildWeekLabel(report)} · ${formatDate(report.week_start)} → ${formatDate(report.week_end)}`}
+        companyMeta={buildWeekLabel(report)}
         companyBadge={
           <span
             className={cn(
@@ -1392,7 +1338,7 @@ export default function WeeklyReportDetailPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="truncate text-[1.15rem] font-semibold tracking-[-0.02em] text-zinc-950">
-                      {report.company_name || "Selected Company"} — Weekly Intelligence Report
+                      {report.company_name || "Selected Company"} â€” Weekly Intelligence Report
                     </h1>
                     <span
                       className={cn(
@@ -1405,9 +1351,6 @@ export default function WeeklyReportDetailPage() {
                   </div>
 
                   <p className="mt-1 text-base text-zinc-600">{buildWeekLabel(report)}</p>
-                  <p className="mt-1 text-sm text-zinc-500">
-                    {formatDate(report.week_start)} → {formatDate(report.week_end)}
-                  </p>
                 </div>
               </div>
             </div>
@@ -1477,7 +1420,7 @@ export default function WeeklyReportDetailPage() {
             value={formatPct(netMarginPct)}
             caption="Profitability quality"
             tone={netMarginPct >= 0.18 ? "success" : "default"}
-            tooltip="Net Profit ÷ Revenue × 100. Target 18%+ for a healthy, well-managed operation."
+            tooltip="Net Profit Ã· Revenue Ã— 100. Target 18%+ for a healthy, well-managed operation."
           />
           <KPI
             icon={<Settings2 size={18} />}
@@ -1510,11 +1453,11 @@ export default function WeeklyReportDetailPage() {
                       <p className="text-sm font-medium text-zinc-700">ISO Week</p>
                       <p className="mt-2 text-sm text-zinc-500">
                         {isoWeekInfo
-                          ? `Week ${isoWeekInfo.isoWeek} / ${isoWeekInfo.isoYear}`
+                          ? `Week ${isoWeekInfo.isoWeek} \u00B7 ${isoWeekInfo.isoYear}`
                           : "Select a date"}
                       </p>
                       <p className="mt-1 text-xs text-zinc-400">
-                        {isoWeekInfo ? `${isoWeekInfo.start} → ${isoWeekInfo.end}` : ""}
+                        {isoWeekInfo ? `${formatDateLong(isoWeekInfo.start)} \u2192 ${formatDateLong(isoWeekInfo.end)}` : ""}
                       </p>
                     </div>
                   </div>
@@ -1698,7 +1641,7 @@ export default function WeeklyReportDetailPage() {
 
                 <div className="relative rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                   <div className="absolute right-3 top-3">
-                    <TooltipIcon definition="The highest-value categorized P&L line item in this report — the single largest cost or revenue driver." />
+                    <TooltipIcon definition="The highest-value categorized P&L line item in this report â€” the single largest cost or revenue driver." />
                   </div>
                   <p className="text-sm font-medium text-zinc-500">Top Line</p>
                   <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">
@@ -1735,7 +1678,7 @@ export default function WeeklyReportDetailPage() {
                       {categories.map((category) => (
                         <option key={category.id} value={category.id}>
                           {category.name} ({category.type}
-                          {category.group ? ` • ${category.group}` : ""})
+                          {category.group ? ` â€¢ ${category.group}` : ""})
                         </option>
                       ))}
                     </select>
@@ -1865,12 +1808,12 @@ export default function WeeklyReportDetailPage() {
                 <ExecutiveRow
                   label="Gross Margin"
                   value={formatPct(grossMarginPct)}
-                  tooltip="Gross Profit ÷ Revenue × 100. Above 65% is considered healthy for a café or bakery operation."
+                  tooltip="Gross Profit Ã· Revenue Ã— 100. Above 65% is considered healthy for a cafÃ© or bakery operation."
                 />
                 <ExecutiveRow
                   label="Labour Total"
                   value={formatMoney(labourTotal)}
-                  tooltip="Total wages and holiday pay for the period — the combined direct labour cost."
+                  tooltip="Total wages and holiday pay for the period â€” the combined direct labour cost."
                 />
                 <ExecutiveRow
                   label="Labour %"
@@ -1888,7 +1831,7 @@ export default function WeeklyReportDetailPage() {
                   label="Net Margin"
                   value={formatPct(netMarginPct)}
                   valueClassName={netMarginPct >= 0.18 ? "text-emerald-600" : ""}
-                  tooltip="Net Profit ÷ Revenue × 100. Target 18%+ for a healthy, well-managed operation."
+                  tooltip="Net Profit Ã· Revenue Ã— 100. Target 18%+ for a healthy, well-managed operation."
                 />
               </div>
             </SectionCard>
@@ -1925,8 +1868,8 @@ export default function WeeklyReportDetailPage() {
               <div className="space-y-3">
                 <ExecutiveRow label="Week" value={isoWeekInfo ? String(isoWeekInfo.isoWeek) : "-"} />
                 <ExecutiveRow label="Year" value={isoWeekInfo ? String(isoWeekInfo.isoYear) : "-"} />
-                <ExecutiveRow label="Week Start" value={isoWeekInfo ? isoWeekInfo.start : "-"} />
-                <ExecutiveRow label="Week End" value={isoWeekInfo ? isoWeekInfo.end : "-"} />
+                <ExecutiveRow label="Week Start" value={isoWeekInfo ? formatDateLong(isoWeekInfo.start) : "-"} />
+                <ExecutiveRow label="Week End" value={isoWeekInfo ? formatDateLong(isoWeekInfo.end) : "-"} />
 
                 {groupedSummaryRows.map((row) => (
                   <ExecutiveRow key={row.label} label={row.label} value={formatMoney(row.value)} />
@@ -1940,3 +1883,4 @@ export default function WeeklyReportDetailPage() {
     </div>
   )
 }
+

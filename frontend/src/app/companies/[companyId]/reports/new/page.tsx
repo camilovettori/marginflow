@@ -23,6 +23,13 @@ import {
   TrendingUp,
 } from "lucide-react"
 import WorkspacePageHeader from "@/components/workspace-page-header"
+import {
+  formatDateInput,
+  formatWeekRange,
+  getCurrentWeekEndingSundayInputValue,
+  getWeekInfo,
+  normalizeWeekEndingToSunday,
+} from "@/lib/report-utils"
 
 type CustomField = {
   id: string
@@ -52,42 +59,6 @@ function formatMoney(value: number) {
 
 function formatPct(value: number) {
   return `${(value * 100).toFixed(1)}%`
-}
-
-function getISOWeekInfo(dateString: string) {
-  if (!dateString) return null
-
-  const date = new Date(`${dateString}T00:00:00`)
-  if (Number.isNaN(date.getTime())) return null
-
-  const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = tmp.getUTCDay() || 7
-  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1))
-  const weekNo = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-
-  const monday = new Date(date)
-  const day = monday.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  monday.setDate(monday.getDate() + diff)
-
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-
-  return {
-    isoWeek: weekNo,
-    isoYear: tmp.getUTCFullYear(),
-    start: new Intl.DateTimeFormat("en-IE", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(monday),
-    end: new Intl.DateTimeFormat("en-IE", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(sunday),
-  }
 }
 
 function Field({
@@ -251,7 +222,7 @@ export default function NewWeeklyReportPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const [weekEnding, setWeekEnding] = useState("")
+  const [weekEnding, setWeekEnding] = useState(() => getCurrentWeekEndingSundayInputValue())
   const [salesIncVat, setSalesIncVat] = useState("")
   const [salesExVat, setSalesExVat] = useState("")
   const [wages, setWages] = useState("")
@@ -282,7 +253,7 @@ export default function NewWeeklyReportPage() {
     loadCompany()
   }, [companyId])
 
-  const isoWeekInfo = useMemo(() => getISOWeekInfo(weekEnding), [weekEnding])
+  const isoWeekInfo = useMemo(() => getWeekInfo(weekEnding), [weekEnding])
 
   const salesExVatNum = parseMoney(salesExVat)
   const wagesNum = parseMoney(wages)
@@ -387,9 +358,11 @@ export default function NewWeeklyReportPage() {
         .filter(Boolean)
         .join("\n\n")
 
+      const normalizedWeekEnding = formatDateInput(normalizeWeekEndingToSunday(weekEnding))
+
       await createWeeklyReport({
         company_id: companyId,
-        week_ending: weekEnding,
+        week_ending: normalizedWeekEnding,
         sales_inc_vat: Number(salesIncVat || 0),
         sales_ex_vat: Number(revenueBase.toFixed(2)),
         wages: wagesNum,
@@ -445,7 +418,7 @@ export default function NewWeeklyReportPage() {
         label="Weekly report creation"
         title="Add Weekly Report"
         subtitle={`Structured input for sales, operating costs and live margin preview for ${company?.name ?? "this company"}.`}
-        companyName={loadingCompany ? "Loading..." : company?.name || "Selected Company"}
+      companyName={loadingCompany ? "Loading..." : company?.name || "Selected Company"}
         companyMeta="Create a company-scoped weekly report with sales, margins, and cost detail."
         companyBadge={
           <span className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -551,11 +524,11 @@ export default function NewWeeklyReportPage() {
                     <p className="text-sm font-medium text-zinc-700">ISO Week</p>
                     <p className="mt-2 text-sm text-zinc-500">
                       {isoWeekInfo
-                        ? `Week ${isoWeekInfo.isoWeek} / ${isoWeekInfo.isoYear}`
+                        ? `Week ${isoWeekInfo.isoWeek} \u00B7 ${isoWeekInfo.isoYear}`
                         : "Select a date"}
                     </p>
                     <p className="mt-1 text-xs text-zinc-400">
-                      {isoWeekInfo ? `${isoWeekInfo.start} → ${isoWeekInfo.end}` : ""}
+                      {isoWeekInfo ? formatWeekRange(weekEnding) : ""}
                     </p>
                   </div>
                 </div>

@@ -1,15 +1,31 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Bell, Search, X } from "lucide-react"
-import { getMe, logout, type MeResponse } from "@/services/api"
+import { getCompanies, getMe, logout, type Company, type MeResponse } from "@/services/api"
 
 export default function TopBar() {
   const router = useRouter()
+  const pathname = usePathname()
   const [me, setMe] = useState<MeResponse | null>(null)
+  const [companies, setCompanies] = useState<Company[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
+  const [companyLoading, setCompanyLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
+
+  const companyId = useMemo(() => {
+    const match = pathname.match(/^\/companies\/([^/]+)/)
+    return match?.[1] ?? null
+  }, [pathname])
+
+  const isCompanyDetailRoute = companyId !== null && companyId !== "new"
+
+  const companyName = useMemo(() => {
+    if (!isCompanyDetailRoute || !companyId) return null
+    return companies.find((company) => company.id === companyId)?.name ?? null
+  }, [companyId, companies, isCompanyDetailRoute])
 
   useEffect(() => {
     async function loadMe() {
@@ -23,6 +39,27 @@ export default function TopBar() {
 
     loadMe()
   }, [])
+
+  useEffect(() => {
+    async function loadCompanies() {
+      if (!isCompanyDetailRoute || !companyId) {
+        setCompanies([])
+        return
+      }
+
+      try {
+        setCompanyLoading(true)
+        const companiesData = await getCompanies()
+        setCompanies(companiesData)
+      } catch {
+        setCompanies([])
+      } finally {
+        setCompanyLoading(false)
+      }
+    }
+
+    loadCompanies()
+  }, [companyId, isCompanyDetailRoute])
 
   useEffect(() => {
     if (searchOpen) {
@@ -39,6 +76,22 @@ export default function TopBar() {
       router.push("/login")
       router.refresh()
     }
+  }
+
+  if (isCompanyDetailRoute) {
+    return (
+      <header className="sticky top-0 z-30 flex h-16 items-center border-b border-[color:var(--color-border-tertiary)] bg-[color:var(--color-background-primary)] px-4">
+        <div className="flex min-w-0 items-center gap-2 text-[13px] text-[color:var(--color-text-muted)]">
+          <Link href="/companies" className="transition hover:text-[color:var(--color-text-primary)]">
+            Portfolio home
+          </Link>
+          <span aria-hidden="true">{"\u203A"}</span>
+          <span className="truncate text-[color:var(--color-text-primary)]">
+            {companyLoading ? "Company" : companyName ?? "Company"}
+          </span>
+        </div>
+      </header>
+    )
   }
 
   return (
@@ -87,9 +140,7 @@ export default function TopBar() {
           </div>
 
           <div className="hidden text-left sm:block">
-            <p className="text-sm font-semibold text-zinc-900">
-              {me?.full_name || "User"}
-            </p>
+            <p className="text-sm font-semibold text-zinc-900">{me?.full_name || "User"}</p>
             <p className="text-xs text-zinc-500">{me?.email || ""}</p>
           </div>
 

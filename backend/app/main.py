@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from app.core.config import APP_NAME
+from app.core.config import APP_NAME, UPLOADS_DIR
 
 # Registra todos os models no metadata antes de qualquer request
 import app.db.models  # noqa: F401
@@ -9,6 +10,7 @@ import app.db.models  # noqa: F401
 from app.api.routes.setup import router as setup_router
 from app.routes.weekly_report import router as weekly_report_router
 from app.routes.dashboard import router as dashboard_router
+from app.routes.analytics import router as analytics_router
 from app.routes.tenants import router as tenants_router
 from app.routes.companies import router as companies_router
 from app.routes.auth import router as auth_router
@@ -20,6 +22,8 @@ from app.routes.sales import router as sales_router
 from app.routes.financial_categories import router as financial_categories_router
 from app.routes.weekly_report_items import router as weekly_report_items_router
 from app.routes.purchase_invoices import router as purchase_invoices_router
+from app.routes.ingredients import router as ingredients_router
+from app.routes.recipes import router as recipes_router
 
 app = FastAPI(title=f"{APP_NAME} API")
 
@@ -39,6 +43,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+
 # Routers
 app.include_router(setup_router)
 
@@ -49,11 +55,14 @@ app.include_router(tenant_members_router)
 
 app.include_router(weekly_report_router)
 app.include_router(dashboard_router)
+app.include_router(analytics_router)
 app.include_router(sales_router)
 app.include_router(unify_sync_router)
 app.include_router(financial_categories_router)
 app.include_router(weekly_report_items_router)
 app.include_router(purchase_invoices_router)
+app.include_router(ingredients_router)
+app.include_router(recipes_router)
 
 # Integrations
 app.include_router(zoho_router)

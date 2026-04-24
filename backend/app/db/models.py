@@ -14,3 +14,5 @@ from app.models.zoho_sales_invoice_item import ZohoSalesInvoiceItem  # noqa: F40
 from app.models.ingredient import Ingredient  # noqa: F401
 from app.models.purchase_invoice import PurchaseInvoice  # noqa: F401
 from app.models.purchase_invoice_line import PurchaseInvoiceLine  # noqa: F401
+from app.models.recipe import Recipe  # noqa: F401
+from app.models.recipe_ingredient import RecipeIngredient  # noqa: F401
