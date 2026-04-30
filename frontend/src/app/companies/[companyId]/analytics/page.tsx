@@ -32,7 +32,6 @@ import {
   loadBudgetPlan,
 } from "@/lib/budget-forecast"
 import {
-  ArrowLeft,
   BarChart3,
   ChevronDown,
   CircleDollarSign,
@@ -712,7 +711,41 @@ export default function CompanyAnalyticsPage() {
     [analytics?.insights, budgetInsights, dataQualityInsights]
   )
 
-  const visibleInsights = useMemo(() => combinedInsights.slice(0, 6), [combinedInsights])
+  const overviewInsights = useMemo(() => {
+    const prioritized: CompanyAnalyticsResponse["insights"] = []
+    const used = new Set<string>()
+    const pick = (severity: CompanyAnalyticsResponse["insights"][number]["severity"]) => {
+      const insight = combinedInsights.find((item) => item.severity === severity && !used.has(item.key))
+      if (insight) {
+        prioritized.push(insight)
+        used.add(insight.key)
+      }
+    }
+
+    pick("critical")
+    pick("warning")
+    pick("success")
+
+    combinedInsights.forEach((insight) => {
+      if (prioritized.length >= 3) return
+      if (used.has(insight.key)) return
+      prioritized.push(insight)
+      used.add(insight.key)
+    })
+
+    return prioritized.slice(0, 3)
+  }, [combinedInsights])
+
+  const changeSummaryMetrics = useMemo(
+    () => primaryMetrics.filter((metric) => metric.delta != null).slice(0, 3),
+    [primaryMetrics]
+  )
+
+  const labourChartReady = useMemo(
+    () => analytics?.weekly_trend.some((point) => (point.labour_pct ?? 0) > 0) ?? false,
+    [analytics?.weekly_trend]
+  )
+
   const bestPeriod = analytics?.highlights.find((item) => item.direction === "best") ?? analytics?.highlights[0] ?? null
   const weakestPeriod = analytics?.highlights.find((item) => item.direction === "worst") ?? weakWeeks[0] ?? null
 
@@ -730,9 +763,10 @@ export default function CompanyAnalyticsPage() {
   ]
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-2">
         <WorkspacePageHeader
+          compact
           label="Company intelligence"
           title="Analytics"
           subtitle={`Actionable operating intelligence for ${analytics?.company_name ?? "this company"}.`}
@@ -823,16 +857,6 @@ export default function CompanyAnalyticsPage() {
         />
       </div>
 
-      <div className="hidden lg:flex">
-        <Link
-          href={`/companies/${companyId}`}
-          className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50"
-        >
-          <ArrowLeft size={16} />
-          Back to Home
-        </Link>
-      </div>
-
       {error ? (
         <div className="rounded-[28px] border border-rose-200 bg-rose-50 p-5 text-rose-700">
           {error}
@@ -863,31 +887,6 @@ export default function CompanyAnalyticsPage() {
             ))}
           </div>
 
-          {secondaryMetrics.length > 0 ? (
-            <div className="flex gap-3 overflow-x-auto pb-1 pt-1">
-              {secondaryMetrics.map((metric) => (
-                <div key={metric.key} className="min-w-[220px] shrink-0">
-                  <CompactMetricCard title={metric.label} value={metric.value} subtitle={metric.subtitle} tone={metric.tone} />
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          <SectionCard title="Insights" subtitle="What happened, why it happened, and what to do next.">
-            {combinedInsights.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                {visibleInsights.map((insight) => (
-                  <InsightCard key={insight.key} insight={insight} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No insights yet"
-                body="This usually means the period is too sparse or the data does not yet contain enough signals to build a meaningful recommendation."
-              />
-            )}
-          </SectionCard>
-
           <div className="flex flex-wrap gap-2">
             {sectionTabs.map((tab) => {
               const active = activeSection === tab.key
@@ -904,7 +903,7 @@ export default function CompanyAnalyticsPage() {
           </div>
 
           {activeSection === "overview" ? (
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <div className="hidden">
               <CompactMetricCard
                 title="Best period"
                 value={bestPeriod?.label ?? "-"}
@@ -926,6 +925,126 @@ export default function CompanyAnalyticsPage() {
             </div>
           ) : null}
 
+          {activeSection === "overview" ? (
+            <SectionCard title="Overview" subtitle="What happened, why it happened, and what to do next.">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    {overviewInsights.length > 0 ? (
+                      overviewInsights.map((insight) => <InsightCard key={insight.key} insight={insight} />)
+                    ) : (
+                      <div className="lg:col-span-3">
+                        <EmptyState
+                          title="No insights yet"
+                          body="This usually means the period is too sparse or the data does not yet contain enough signals to build a meaningful recommendation."
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {changeSummaryMetrics.length > 0 ? (
+                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">What changed</p>
+                          <p className="mt-1 text-sm text-zinc-500">Primary movement versus the previous period.</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        {changeSummaryMetrics.map((metric) => (
+                          <div key={metric.key} className="rounded-2xl border border-zinc-200 bg-white p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{metric.label}</p>
+                            <p className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">{metric.delta ?? "-"}</p>
+                            <p className="mt-1 text-sm text-zinc-500">{metric.subtitle}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {secondaryMetrics.length > 0 ? (
+                    <div className="flex gap-3 overflow-x-auto pb-1 pt-1">
+                      {secondaryMetrics.map((metric) => (
+                        <div key={metric.key} className="min-w-[220px] shrink-0">
+                          <CompactMetricCard title={metric.label} value={metric.value} subtitle={metric.subtitle} tone={metric.tone} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
+                    <div className="flex items-center gap-3">
+                      <BarChart3 size={18} className="text-zinc-500" />
+                      <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Summary trend</h3>
+                    </div>
+                    <p className="mt-2 text-sm text-zinc-500">Revenue ex VAT over the selected period.</p>
+                    <div className="mt-4 h-[220px]">
+                      {revenueTrend.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={revenueTrend}>
+                            <defs>
+                              <linearGradient id="analyticsRevenueFillOverview" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#18181b" stopOpacity={0.16} />
+                                <stop offset="95%" stopColor="#18181b" stopOpacity={0.02} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                            <XAxis dataKey="label" tick={{ fill: "#71717a", fontSize: 12 }} />
+                            <YAxis tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={(value) => formatMoney(value as number)} />
+                            <Tooltip
+                              formatter={(value: number | string | undefined) => formatMoney(Number(value ?? 0))}
+                              labelFormatter={(label) => String(label)}
+                              contentStyle={{
+                                borderRadius: 16,
+                                border: "1px solid #e4e4e7",
+                                background: "#ffffff",
+                              }}
+                            />
+                            <Area type="monotone" dataKey="revenue_ex_vat" stroke="#18181b" fill="url(#analyticsRevenueFillOverview)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <EmptyState
+                          title="No sales trend available"
+                          body="Revenue trend data will appear once the selected period contains invoices."
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                    <div className="flex items-center gap-3">
+                      <TrendingUp size={18} className="text-zinc-500" />
+                      <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Coverage</h3>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="rounded-2xl bg-zinc-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Weekly reports</p>
+                        <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.weekly_reports)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-zinc-50 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Matched products</p>
+                        <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.matched_products)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {secondaryMetrics.length > 0 ? (
+                <div className="mt-4 flex gap-3 overflow-x-auto pb-1 pt-1">
+                  {secondaryMetrics.map((metric) => (
+                    <div key={metric.key} className="min-w-[220px] shrink-0">
+                      <CompactMetricCard title={metric.label} value={metric.value} subtitle={metric.subtitle} tone={metric.tone} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </SectionCard>
+          ) : null}
+
           <SectionCard
             title="Revenue Intelligence"
             subtitle="Revenue trend, best and weakest periods, and the product mix driving sales."
@@ -940,7 +1059,7 @@ export default function CompanyAnalyticsPage() {
                 <p className="mt-2 text-sm text-zinc-500">
                   Revenue ex VAT over the selected period. The granularity changes automatically with the period length.
                 </p>
-                <div className="mt-6 h-[260px]">
+                <div className="mt-5 h-[220px]">
                   {revenueTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={revenueTrend}>
@@ -1089,7 +1208,7 @@ export default function CompanyAnalyticsPage() {
                 <p className="mt-2 text-sm text-zinc-500">
                   Weekly gross margin, net margin, labour, and food cost signals.
                 </p>
-                <div className="mt-6 h-[260px]">
+                <div className="mt-5 h-[220px]">
                   {weeklyTrendPoints.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={weeklyTrendPoints}>
@@ -1235,25 +1354,17 @@ export default function CompanyAnalyticsPage() {
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="max-w-2xl space-y-3">
                 <EmptyState
                   title="No budget plan configured in this browser"
                   body="Budget / Forecast comparisons appear once a plan is saved on the Budget / Forecast page for the same company and year."
                 />
-                <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/70 p-5">
-                  <p className="text-sm font-semibold text-zinc-950">What will unlock here</p>
-                  <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-600">
-                    <li>Actual vs budget variance for the selected period</li>
-                    <li>Current pace versus the annual forecast</li>
-                    <li>Target pace required to stay on plan</li>
-                  </ul>
-                  <Link
-                    href={`/companies/${companyId}/budget-forecast`}
-                    className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50"
-                  >
-                    Open Budget / Forecast
-                  </Link>
-                </div>
+                <Link
+                  href={`/companies/${companyId}/budget-forecast`}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50"
+                >
+                  Open Budget / Forecast
+                </Link>
               </div>
             )}
           </SectionCard>
@@ -1272,8 +1383,8 @@ export default function CompanyAnalyticsPage() {
                 <p className="mt-2 text-sm text-zinc-500">
                   Each point is a weekly report. The goal is higher revenue with a controlled labour share.
                 </p>
-                <div className="mt-6 h-[260px]">
-                  {analytics.weekly_trend.length > 0 ? (
+                <div className="mt-5 h-[220px]">
+                  {analytics.weekly_trend.length > 0 && labourChartReady ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <ScatterChart>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
@@ -1321,8 +1432,8 @@ export default function CompanyAnalyticsPage() {
                     </ResponsiveContainer>
                   ) : (
                     <EmptyState
-                      title="No weekly points available"
-                      body="Weekly report coverage is needed to compare revenue against labour share."
+                      title="Labour data is too thin for a useful chart"
+                      body="Weekly reports exist, but labour coverage is not strong enough yet to make the scatter plot meaningful."
                     />
                   )}
                 </div>
@@ -1385,22 +1496,22 @@ export default function CompanyAnalyticsPage() {
                     <Users size={18} className="text-zinc-500" />
                     <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Coverage</h3>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-zinc-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Weekly reports</p>
-                      <p className="mt-1 text-2xl font-semibold text-zinc-950">{formatCount(analytics.coverage.weekly_reports)}</p>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl bg-zinc-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Weekly reports</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.weekly_reports)}</p>
                     </div>
-                    <div className="rounded-2xl bg-zinc-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Matched products</p>
-                      <p className="mt-1 text-2xl font-semibold text-zinc-950">{formatCount(analytics.coverage.matched_products)}</p>
+                    <div className="rounded-2xl bg-zinc-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Matched products</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.matched_products)}</p>
                     </div>
-                    <div className="rounded-2xl bg-zinc-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Sales invoices</p>
-                      <p className="mt-1 text-2xl font-semibold text-zinc-950">{formatCount(analytics.coverage.sales_invoices)}</p>
+                    <div className="rounded-2xl bg-zinc-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Sales invoices</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.sales_invoices)}</p>
                     </div>
-                    <div className="rounded-2xl bg-zinc-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Purchase lines</p>
-                      <p className="mt-1 text-2xl font-semibold text-zinc-950">{formatCount(analytics.coverage.purchase_lines)}</p>
+                    <div className="rounded-2xl bg-zinc-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Purchase lines</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.purchase_lines)}</p>
                     </div>
                   </div>
                 </div>

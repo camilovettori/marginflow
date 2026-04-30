@@ -1,7 +1,8 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import Link from "next/link"
-import { FormEvent, useEffect, useMemo, useState } from "react"
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowRight,
@@ -17,6 +18,11 @@ import {
   selectTenant,
   type TenantBrief,
 } from "@/services/api"
+
+const LoginAtmosphere3D = dynamic(
+  () => import("@/components/login/login-atmosphere-3d"),
+  { ssr: false }
+)
 
 function getFriendlyError(message: string) {
   const lower = message.toLowerCase()
@@ -63,8 +69,9 @@ function Brand() {
 function GhostPreview() {
   return (
     <div className="mt-10 hidden max-w-[520px] xl:block">
-      <div className="relative overflow-hidden rounded-[28px] border border-white/8 bg-white/[0.035] p-5 backdrop-blur-xl">
+      <div className="relative overflow-hidden rounded-[28px] border border-white/8 bg-white/[0.035] p-5 backdrop-blur-xl login-card-animate">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,transparent_18%,rgba(255,255,255,0.08)_34%,transparent_50%)] opacity-40 login-sweep-animate" />
 
         <div className="relative">
           <div className="flex items-center justify-between">
@@ -77,7 +84,7 @@ function GhostPreview() {
               </p>
             </div>
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/12 text-emerald-300">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/12 text-emerald-300 login-hero-glow">
               <TrendingUp size={18} />
             </div>
           </div>
@@ -110,8 +117,11 @@ function GhostPreview() {
               {[22, 28, 36, 33, 48, 58, 70].map((h, i) => (
                 <div key={i} className="flex-1 flex items-end">
                   <div
-                    className="w-full rounded-t-xl bg-gradient-to-t from-white/90 to-white/40"
-                    style={{ height: `${h}%` }}
+                    className="w-full rounded-t-xl bg-gradient-to-t from-white/90 to-white/40 login-bar-life"
+                    style={{
+                      height: `${h}%`,
+                      animationDelay: `${i * 140}ms`,
+                    }}
                   />
                 </div>
               ))}
@@ -134,6 +144,7 @@ function GhostPreview() {
 
 export default function LoginPage() {
   const router = useRouter()
+  const pageRef = useRef<HTMLDivElement>(null)
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -143,6 +154,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
     async function checkExistingSession() {
@@ -162,6 +174,71 @@ export default function LoginPage() {
 
     checkExistingSession()
   }, [router])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return
+
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const applyMotion = () => setReducedMotion(media.matches)
+    applyMotion()
+    media.addEventListener?.("change", applyMotion)
+
+    return () => {
+      media.removeEventListener?.("change", applyMotion)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || reducedMotion) return
+
+    const root = pageRef.current
+    if (!root) return
+
+    let frame = 0
+    const target = { x: 0, y: 0 }
+    const current = { x: 0, y: 0 }
+
+    const onMove = (event: PointerEvent) => {
+      const x = (event.clientX / window.innerWidth) * 2 - 1
+      const y = (event.clientY / window.innerHeight) * 2 - 1
+      target.x = x
+      target.y = y
+    }
+
+    const onLeave = () => {
+      target.x = 0
+      target.y = 0
+    }
+
+    const tick = () => {
+      current.x += (target.x - current.x) * 0.06
+      current.y += (target.y - current.y) * 0.06
+
+      const heroX = current.x * 8
+      const heroY = current.y * 6
+      const cardX = current.x * 4
+      const cardY = current.y * 3
+
+      root.style.setProperty("--login-hero-x", `${heroX}px`)
+      root.style.setProperty("--login-hero-y", `${heroY}px`)
+      root.style.setProperty("--login-card-x", `${cardX}px`)
+      root.style.setProperty("--login-card-y", `${cardY}px`)
+      root.style.setProperty("--login-orb-x", `${current.x * 14}px`)
+      root.style.setProperty("--login-orb-y", `${current.y * 10}px`)
+
+      frame = window.requestAnimationFrame(tick)
+    }
+
+    window.addEventListener("pointermove", onMove, { passive: true })
+    window.addEventListener("pointerleave", onLeave)
+    frame = window.requestAnimationFrame(tick)
+
+    return () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerleave", onLeave)
+      window.cancelAnimationFrame(frame)
+    }
+  }, [reducedMotion])
 
   const selectedTenant = useMemo(
     () => tenants.find((tenant) => tenant.tenant_id === selectedTenantId) ?? null,
@@ -242,38 +319,53 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#090909] text-white">
+    <main ref={pageRef} className="relative min-h-screen overflow-hidden bg-[#090909] text-white">
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <LoginAtmosphere3D />
+      </div>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(255,255,255,0.08),transparent_24%),radial-gradient(circle_at_82%_14%,rgba(99,102,241,0.15),transparent_20%),radial-gradient(circle_at_52%_100%,rgba(255,255,255,0.04),transparent_30%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.018),rgba(255,255,255,0))]" />
       <div className="absolute inset-0 opacity-[0.045] [background-image:linear-gradient(rgba(255,255,255,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.18)_1px,transparent_1px)] [background-size:46px_46px]" />
 
-      <div className="relative mx-auto flex min-h-screen max-w-[1420px] items-center px-6 py-10 sm:px-8 lg:px-10 xl:px-16">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-[1420px] items-center px-6 py-10 sm:px-8 lg:px-10 xl:px-16">
         <div className="grid w-full grid-cols-1 items-center gap-12 xl:grid-cols-[1fr_0.9fr] xl:gap-18">
-          <section className="flex flex-col justify-center">
-            <Brand />
+          <section
+            className="relative flex flex-col justify-center transition-transform duration-300 ease-out"
+            style={{
+              transform: "translate3d(var(--login-hero-x, 0px), var(--login-hero-y, 0px), 0)",
+            }}
+          >
+            <div className="relative z-10">
+              <Brand />
 
-            <div className="mt-14 max-w-[640px]">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/52">
-                Financial visibility for operators
-              </p>
+              <div className="mt-14 max-w-[640px]">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/52">
+                  Financial visibility for operators
+                </p>
 
-              <h1 className="mt-6 max-w-[580px] text-[54px] font-semibold leading-[0.94] tracking-[-0.06em] text-[#F3F4F6] sm:text-[66px] xl:text-[78px]">
-                Understand where margin is built.
-              </h1>
+                <h1 className="mt-6 max-w-[580px] text-[54px] font-semibold leading-[0.94] tracking-[-0.06em] text-[#F3F4F6] sm:text-[66px] xl:text-[78px]">
+                  Understand where margin is built.
+                </h1>
 
-              <p className="mt-8 max-w-[540px] text-[18px] leading-8 text-white/74 sm:text-[20px] sm:leading-9">
-                Weekly clarity across revenue, labour and profit for multi-company operators.
-              </p>
+                <p className="mt-8 max-w-[540px] text-[18px] leading-8 text-white/74 sm:text-[20px] sm:leading-9">
+                  Weekly clarity across revenue, labour and profit for multi-company operators.
+                </p>
+              </div>
+
+              <GhostPreview />
             </div>
-
-            <GhostPreview />
           </section>
 
           <section className="flex items-center justify-center xl:justify-end">
-            <div className="w-full max-w-[540px]">
-              <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-white/[0.97] p-8 text-zinc-950 shadow-[0_40px_120px_rgba(0,0,0,0.45)] md:p-10">
-                <div className="absolute inset-x-0 top-0 h-28 bg-[linear-gradient(180deg,rgba(244,244,245,0.92),rgba(255,255,255,0))]" />
-                <div className="absolute right-[-40px] top-[-40px] h-40 w-40 rounded-full bg-zinc-100 blur-3xl" />
+            <div
+              className="w-full max-w-[540px] transition-transform duration-300 ease-out"
+              style={{
+                transform: "translate3d(var(--login-card-x, 0px), var(--login-card-y, 0px), 0)",
+              }}
+            >
+              <div className="relative overflow-hidden rounded-[36px] border border-white/18 bg-white/[0.985] p-8 text-zinc-950 shadow-[0_55px_140px_rgba(2,6,23,0.42)] ring-1 ring-white/45 md:p-10 login-card-animate">
+                <div className="absolute inset-x-0 top-0 h-28 bg-[linear-gradient(180deg,rgba(244,244,245,0.96),rgba(255,255,255,0))]" />
+                <div className="absolute right-[-40px] top-[-40px] h-40 w-40 rounded-full bg-zinc-100/80 blur-3xl" />
 
                 <div className="relative">
                   <div className="mb-9">
