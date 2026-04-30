@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import {
   createWeeklyReportItem,
@@ -17,10 +17,11 @@ import {
 } from "@/services/api"
 import {
   ArrowLeft,
-  BarChart3,
   Building2,
   CalendarDays,
+  CheckCircle2,
   Download,
+  AlertTriangle,
   Layers3,
   Mail,
   Percent,
@@ -32,10 +33,10 @@ import {
   Target,
   Trash2,
   TrendingUp,
+  LoaderCircle,
   Wallet,
   X,
 } from "lucide-react"
-import WorkspacePageHeader from "@/components/workspace-page-header"
 import {
   buildWeekLabel as buildWeekLabelFromWeekEnding,
   formatDateInput,
@@ -121,22 +122,22 @@ function SectionCard({
   return (
     <section
       className={cn(
-        "rounded-[24px] border border-black/5 bg-white/95 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_24px_rgba(15,23,42,0.03)] backdrop-blur-sm",
+        "rounded-3xl border border-zinc-200/70 bg-white p-5 shadow-sm",
         className
       )}
     >
-      <div className="mb-4 flex items-start gap-3">
+      <div className="mb-5 flex items-start gap-3">
         {icon ? (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-700 ring-1 ring-zinc-200/70">
             {icon}
           </div>
         ) : null}
 
         <div>
-          <h3 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-zinc-950">
+          <h3 className="text-[1.05rem] font-semibold tracking-[-0.02em] text-zinc-950">
             {title}
           </h3>
-          {description ? <p className="mt-1 text-sm text-zinc-500">{description}</p> : null}
+          {description ? <p className="mt-1 text-sm leading-6 text-zinc-500">{description}</p> : null}
         </div>
       </div>
       {children}
@@ -154,8 +155,8 @@ function SubCard({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-[24px] border border-black/5 bg-zinc-50/70 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-      <div className="mb-3 flex items-center gap-2">
+    <div className="rounded-3xl border border-zinc-200/70 bg-zinc-50/60 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] md:p-5">
+      <div className="mb-3 flex items-center gap-2.5">
         {icon ? <span className="text-zinc-500">{icon}</span> : null}
         <h4 className="text-sm font-semibold text-zinc-950">{title}</h4>
       </div>
@@ -179,13 +180,15 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</label>
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        {label}
+      </label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+        className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
       />
     </div>
   )
@@ -206,9 +209,11 @@ function MoneyField({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</label>
-      <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
-        <span className="mr-2 text-sm text-zinc-500">â‚¬</span>
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        {label}
+      </label>
+      <div className="flex h-11 items-center rounded-2xl border border-zinc-200 bg-white px-4 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
+        <span className="mr-2 text-sm font-medium text-zinc-500">€</span>
         <input
           type="number"
           step="0.01"
@@ -217,7 +222,7 @@ function MoneyField({
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full bg-transparent text-sm text-zinc-900 outline-none disabled:text-zinc-500"
+          className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 disabled:text-zinc-500"
         />
       </div>
     </div>
@@ -237,8 +242,10 @@ function PercentField({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</label>
-      <div className="flex items-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        {label}
+      </label>
+      <div className="flex h-11 items-center rounded-2xl border border-zinc-200 bg-white px-4 transition focus-within:border-zinc-400 focus-within:ring-4 focus-within:ring-zinc-100">
         <input
           type="number"
           step="0.01"
@@ -246,9 +253,9 @@ function PercentField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full bg-transparent text-sm text-zinc-900 outline-none"
+          className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
         />
-        <span className="ml-2 text-sm text-zinc-500">%</span>
+        <span className="ml-2 text-sm font-medium text-zinc-500">%</span>
       </div>
     </div>
   )
@@ -270,19 +277,19 @@ function KPI({
   tooltip?: string
 }) {
   return (
-    <div className="relative rounded-[28px] border border-black/5 bg-white/95 p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.04)]">
+    <div className="relative rounded-3xl border border-zinc-200/70 bg-white p-4 shadow-sm md:p-5">
       {tooltip ? (
         <div className="absolute right-4 top-4">
           <TooltipIcon definition={tooltip} />
         </div>
       ) : null}
-      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-700 ring-1 ring-zinc-200/70">
         {icon}
       </div>
-      <p className="mt-4 text-sm font-medium text-zinc-500">{label}</p>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">{label}</p>
       <p
         className={cn(
-          "mt-2 text-4xl font-semibold tracking-tight",
+          "mt-2 text-[2rem] font-semibold tracking-tight md:text-[2.15rem]",
           tone === "success" && "text-emerald-600",
           tone === "warning" && "text-amber-600",
           tone === "default" && "text-zinc-950"
@@ -290,7 +297,7 @@ function KPI({
       >
         {value}
       </p>
-      <p className="mt-2 text-sm text-zinc-500">{caption}</p>
+      <p className="mt-2 text-sm leading-6 text-zinc-500">{caption}</p>
     </div>
   )
 }
@@ -307,7 +314,7 @@ function ExecutiveRow({
   tooltip?: string
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3">
+    <div className="flex items-center justify-between rounded-2xl border border-zinc-200/70 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
       <span className="flex items-center gap-1.5 text-sm text-zinc-500">
         {label}
         {tooltip ? <TooltipIcon definition={tooltip} /> : null}
@@ -331,10 +338,10 @@ function Signal({
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
       : tone === "warn"
         ? "border-amber-200 bg-amber-50 text-amber-900"
-        : "border-zinc-200 bg-zinc-50 text-zinc-700"
+        : "border-zinc-200/70 bg-zinc-50/80 text-zinc-700"
 
   return (
-    <div className={cn("relative rounded-2xl border px-4 py-3 pr-8 text-sm leading-6", styles)}>
+    <div className={cn("relative rounded-2xl border px-4 py-3.5 pr-8 text-sm leading-6", styles)}>
       {tooltip ? (
         <div className="absolute right-3 top-3">
           <TooltipIcon definition={tooltip} />
@@ -343,6 +350,30 @@ function Signal({
       {children}
     </div>
   )
+}
+
+function buildSaveSignature(payload: WeeklyReportUpdatePayload) {
+  return JSON.stringify([
+    payload.company_id,
+    payload.week_ending,
+    payload.sales_inc_vat,
+    payload.sales_ex_vat,
+    payload.wages,
+    payload.holiday_pay,
+    payload.food_cost,
+    payload.fixed_costs,
+    payload.variable_costs,
+    payload.loans_hp,
+    payload.vat_due,
+    payload.notes || "",
+  ])
+}
+
+function getSaveToneClass(tone: "neutral" | "warn" | "danger" | "success") {
+  if (tone === "success") return "border-emerald-200 bg-emerald-50 text-emerald-700"
+  if (tone === "warn") return "border-amber-200 bg-amber-50 text-amber-700"
+  if (tone === "danger") return "border-rose-200 bg-rose-50 text-rose-700"
+  return "border-zinc-200 bg-zinc-50 text-zinc-700"
 }
 
 function getTypePillClass(type?: string | null) {
@@ -377,6 +408,9 @@ export default function WeeklyReportDetailPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [lastSavedSignature, setLastSavedSignature] = useState("")
+  const [savedJustNow, setSavedJustNow] = useState(false)
 
   const [foodCostMode, setFoodCostMode] = useState<"manual" | "percent">("manual")
   const [foodCostPercent, setFoodCostPercent] = useState("30")
@@ -401,6 +435,14 @@ export default function WeeklyReportDetailPage() {
     amount: "",
     notes: "",
   })
+
+  const autosaveTimerRef = useRef<number | null>(null)
+  const saveInFlightRef = useRef(false)
+  const savePromiseRef = useRef<Promise<WeeklyReportDetail> | null>(null)
+  const lastSavedSignatureRef = useRef("")
+  const currentSignatureRef = useRef("")
+  const currentPayloadRef = useRef<WeeklyReportUpdatePayload | null>(null)
+  const savedJustNowTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     async function loadReport() {
@@ -437,6 +479,28 @@ export default function WeeklyReportDetailPage() {
           const pct = ((data.food_cost || 0) / (data.sales_ex_vat || 1)) * 100
           setFoodCostPercent(pct.toFixed(2))
         }
+
+        const initialPayload: WeeklyReportUpdatePayload = {
+          company_id: data.company_id,
+          week_ending: formatDateInput(normalizeWeekEndingToSunday(data.week_ending)),
+          sales_inc_vat: data.sales_inc_vat || 0,
+          sales_ex_vat: data.sales_ex_vat || 0,
+          wages: data.wages || 0,
+          holiday_pay: data.holiday_pay || 0,
+          food_cost: data.food_cost || 0,
+          fixed_costs: data.fixed_costs || 0,
+          variable_costs: data.variable_costs || 0,
+          loans_hp: data.loans_hp || 0,
+          vat_due: data.vat_due || 0,
+          notes: data.notes || "",
+        }
+        const initialSignature = buildSaveSignature(initialPayload)
+        setLastSavedSignature(initialSignature)
+        lastSavedSignatureRef.current = initialSignature
+        currentSignatureRef.current = initialSignature
+        currentPayloadRef.current = initialPayload
+        setSaveError(null)
+        setSavedJustNow(false)
       } catch (err) {
         console.error("Report detail error:", err)
         setError(err instanceof Error ? err.message : "Failed to load weekly report.")
@@ -497,6 +561,74 @@ export default function WeeklyReportDetailPage() {
     return labourTotal / salesExVat
   }, [salesExVat, labourTotal])
 
+  const currentPayload = useMemo<WeeklyReportUpdatePayload>(() => {
+    return {
+      ...form,
+      company_id: form.company_id,
+      week_ending: formatDateInput(normalizeWeekEndingToSunday(form.week_ending)),
+      food_cost: Number(computedFoodCost.toFixed(2)),
+    }
+  }, [form, computedFoodCost])
+
+  const currentSignature = useMemo(() => buildSaveSignature(currentPayload), [currentPayload])
+  const hasUnsavedChanges = currentSignature !== lastSavedSignature
+  const saveStatus = useMemo(() => {
+    if (saving) {
+      return {
+        label: "Saving...",
+        helper: "Autosaves when you edit.",
+        tone: "neutral" as const,
+        icon: <LoaderCircle size={14} className="animate-spin" />,
+      }
+    }
+
+    if (saveError && hasUnsavedChanges) {
+      return {
+        label: "Save failed",
+        helper: "Retry now to sync your latest changes.",
+        tone: "danger" as const,
+        icon: <AlertTriangle size={14} />,
+      }
+    }
+
+    if (hasUnsavedChanges) {
+      return {
+        label: "Unsaved changes",
+        helper: "Autosaves when you edit.",
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+      }
+    }
+
+    if (savedJustNow) {
+      return {
+        label: "Saved just now",
+        helper: "Autosaves when you edit.",
+        tone: "success" as const,
+        icon: <CheckCircle2 size={14} />,
+      }
+    }
+
+    return {
+      label: "All changes saved",
+      helper: "Autosaves when you edit.",
+      tone: "success" as const,
+      icon: <CheckCircle2 size={14} />,
+    }
+  }, [hasUnsavedChanges, saveError, savedJustNow, saving])
+
+  useEffect(() => {
+    currentSignatureRef.current = currentSignature
+    currentPayloadRef.current = currentPayload
+  }, [currentSignature, currentPayload])
+
+  useEffect(() => {
+    if (!saveError) return
+    if (currentSignature !== lastSavedSignature) {
+      setSaveError(null)
+    }
+  }, [currentSignature, lastSavedSignature, saveError])
+
   const breakdownLineCount = breakdown?.items.length || 0
 
   const breakdownTotal = useMemo(() => {
@@ -525,20 +657,6 @@ export default function WeeklyReportDetailPage() {
     return "border-rose-200 bg-rose-50 text-rose-700"
   }, [netMarginPct, labourPct])
 
-  const groupedSummaryRows = useMemo(() => {
-    const rows: Array<{ label: string; value: number }> = []
-
-    ;(breakdown?.totals_by_type || []).forEach((row) => {
-      rows.push({ label: `Type Â· ${row.key}`, value: row.total })
-    })
-
-    ;(breakdown?.totals_by_group || []).forEach((row) => {
-      rows.push({ label: `Group Â· ${row.key}`, value: row.total })
-    })
-
-    return rows
-  }, [breakdown])
-
   const goodSignals = useMemo(() => {
     const signals: Array<{ text: string; tooltip: string }> = []
 
@@ -546,7 +664,7 @@ export default function WeeklyReportDetailPage() {
       signals.push({
         text: "Strong week. Profitability is healthy and the business is operating inside a good efficiency range.",
         tooltip:
-          "Net Margin â‰¥18%: Net Profit Ã· Revenue Ã— 100. The business is above the healthy threshold for weekly operations.",
+          "Net Margin ≥18%: Net Profit ÷ Revenue × 100. The business is above the healthy threshold for weekly operations.",
       })
     }
 
@@ -554,7 +672,7 @@ export default function WeeklyReportDetailPage() {
       signals.push({
         text: "Gross margin is holding well. Core product margin looks solid this week.",
         tooltip:
-          "Gross Margin â‰¥65%: Gross Profit Ã· Revenue Ã— 100. A strong product margin before labour and overhead costs.",
+          "Gross Margin ≥65%: Gross Profit ÷ Revenue × 100. A strong product margin before labour and overhead costs.",
       })
     }
 
@@ -576,7 +694,7 @@ export default function WeeklyReportDetailPage() {
       signals.push({
         text: "Margin is under target. Focus on cost control, pricing discipline and operational efficiency.",
         tooltip:
-          "Net Margin <10%: Net Profit Ã· Revenue Ã— 100. Currently below the 10% minimum healthy threshold â€” prioritize cost reduction.",
+          "Net Margin <10%: Net Profit ÷ Revenue × 100. Currently below the 10% minimum healthy threshold — prioritize cost reduction.",
       })
     }
 
@@ -592,7 +710,7 @@ export default function WeeklyReportDetailPage() {
       signals.push({
         text: "Gross margin is softer than expected. Review food cost, supplier pricing and waste.",
         tooltip:
-          "Gross Margin <60%: Gross Profit Ã· Revenue Ã— 100. Below 60% signals food cost pressure â€” review supplier pricing and waste.",
+          "Gross Margin <60%: Gross Profit ÷ Revenue × 100. Below 60% signals food cost pressure — review supplier pricing and waste.",
       })
     }
 
@@ -632,51 +750,192 @@ export default function WeeklyReportDetailPage() {
     }
   }
 
-  async function saveReportSilently(): Promise<WeeklyReportDetail> {
-    const normalizedWeekEnding = formatDateInput(normalizeWeekEndingToSunday(form.week_ending))
+  const clearAutosaveTimer = useCallback(() => {
+    if (autosaveTimerRef.current !== null) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+  }, [])
 
-    const payload: WeeklyReportUpdatePayload = {
-      ...form,
-      week_ending: normalizedWeekEnding,
-      food_cost: Number(computedFoodCost.toFixed(2)),
+  const clearSavedJustNowTimer = useCallback(() => {
+    if (savedJustNowTimerRef.current !== null) {
+      window.clearTimeout(savedJustNowTimerRef.current)
+      savedJustNowTimerRef.current = null
+    }
+  }, [])
+
+  function getSaveButtonLabel() {
+    if (saving) return "Saving..."
+    if (saveError) return "Retry save"
+    if (hasUnsavedChanges) return "Save now"
+    return "Save now"
+  }
+
+  const saveReportSilently = useCallback(async (): Promise<WeeklyReportDetail> => {
+    if (saveInFlightRef.current && savePromiseRef.current) {
+      return savePromiseRef.current
     }
 
-    const updated = await updateWeeklyReport(reportId, payload)
+    const payload = currentPayloadRef.current || currentPayload
+    const signature = buildSaveSignature(payload)
 
-    setReport(updated)
-    setForm({
-      company_id: updated.company_id,
-      week_ending: formatDateInput(updated.week_ending),
-      sales_inc_vat: updated.sales_inc_vat || 0,
-      sales_ex_vat: updated.sales_ex_vat || 0,
-      wages: updated.wages || 0,
-      holiday_pay: updated.holiday_pay || 0,
-      food_cost: updated.food_cost || 0,
-      fixed_costs: updated.fixed_costs || 0,
-      variable_costs: updated.variable_costs || 0,
-      loans_hp: updated.loans_hp || 0,
-      vat_due: updated.vat_due || 0,
-      notes: updated.notes || "",
-    })
+    if (signature === lastSavedSignatureRef.current && report) {
+      return report
+    }
 
-    return updated
-  }
+    clearAutosaveTimer()
+    clearSavedJustNowTimer()
+
+    saveInFlightRef.current = true
+    setSaving(true)
+
+    const request = updateWeeklyReport(reportId, payload)
+    savePromiseRef.current = request
+
+    try {
+      const updated = await request
+
+      setReport(updated)
+      setForm({
+        company_id: updated.company_id,
+        week_ending: formatDateInput(updated.week_ending),
+        sales_inc_vat: updated.sales_inc_vat || 0,
+        sales_ex_vat: updated.sales_ex_vat || 0,
+        wages: updated.wages || 0,
+        holiday_pay: updated.holiday_pay || 0,
+        food_cost: updated.food_cost || 0,
+        fixed_costs: updated.fixed_costs || 0,
+        variable_costs: updated.variable_costs || 0,
+        loans_hp: updated.loans_hp || 0,
+        vat_due: updated.vat_due || 0,
+        notes: updated.notes || "",
+      })
+
+      if ((updated.food_cost || 0) > 0 && (updated.sales_ex_vat || 0) > 0) {
+        const pct = ((updated.food_cost || 0) / (updated.sales_ex_vat || 1)) * 100
+        setFoodCostPercent(pct.toFixed(2))
+      }
+
+      const updatedPayload: WeeklyReportUpdatePayload = {
+        company_id: updated.company_id,
+        week_ending: formatDateInput(normalizeWeekEndingToSunday(updated.week_ending)),
+        sales_inc_vat: updated.sales_inc_vat || 0,
+        sales_ex_vat: updated.sales_ex_vat || 0,
+        wages: updated.wages || 0,
+        holiday_pay: updated.holiday_pay || 0,
+        food_cost: updated.food_cost || 0,
+        fixed_costs: updated.fixed_costs || 0,
+        variable_costs: updated.variable_costs || 0,
+        loans_hp: updated.loans_hp || 0,
+        vat_due: updated.vat_due || 0,
+        notes: updated.notes || "",
+      }
+      const updatedSignature = buildSaveSignature(updatedPayload)
+      setLastSavedSignature(updatedSignature)
+      lastSavedSignatureRef.current = updatedSignature
+      currentSignatureRef.current = updatedSignature
+      currentPayloadRef.current = updatedPayload
+      setSaveError(null)
+      setSavedJustNow(true)
+      clearSavedJustNowTimer()
+      savedJustNowTimerRef.current = window.setTimeout(() => {
+        setSavedJustNow(false)
+      }, 2200)
+
+      return updated
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update weekly report."
+      console.error("Save report error:", err)
+      setSaveError(message)
+      setError(message)
+      throw err
+    } finally {
+      saveInFlightRef.current = false
+      savePromiseRef.current = null
+      setSaving(false)
+    }
+  }, [
+    clearAutosaveTimer,
+    clearSavedJustNowTimer,
+    currentPayload,
+    report,
+    reportId,
+  ])
+
+  const flushPendingChanges = useCallback(async (): Promise<WeeklyReportDetail> => {
+    clearAutosaveTimer()
+
+    let latestReport = report
+
+    while (currentSignatureRef.current !== lastSavedSignatureRef.current) {
+      latestReport = await saveReportSilently()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    }
+
+    if (!latestReport) {
+      throw new Error("No weekly report is loaded.")
+    }
+
+    return latestReport
+  }, [clearAutosaveTimer, currentSignatureRef, lastSavedSignatureRef, report, saveReportSilently])
+
+  useEffect(() => {
+    if (loading || !report) return
+
+    if (!hasUnsavedChanges) {
+      clearAutosaveTimer()
+      return
+    }
+
+    if (saveError) {
+      clearAutosaveTimer()
+      return
+    }
+
+    clearAutosaveTimer()
+    autosaveTimerRef.current = window.setTimeout(() => {
+      void flushPendingChanges().catch((err) => {
+        console.error("Autosave error:", err)
+      })
+    }, 1000)
+
+    return clearAutosaveTimer
+  }, [clearAutosaveTimer, currentSignature, flushPendingChanges, hasUnsavedChanges, loading, report, saveError])
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (loading) return
+
+      if (saving || hasUnsavedChanges || saveError) {
+        event.preventDefault()
+        event.returnValue = ""
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [hasUnsavedChanges, loading, saveError, saving])
+
+  useEffect(() => {
+    return () => {
+      clearAutosaveTimer()
+      clearSavedJustNowTimer()
+    }
+  }, [clearAutosaveTimer, clearSavedJustNowTimer])
 
   async function handleSave() {
     try {
-      setSaving(true)
       setError(null)
       setSuccessMessage(null)
+      setSaveError(null)
 
-      await saveReportSilently()
+      await flushPendingChanges()
       await reloadBreakdown()
 
       setSuccessMessage("Weekly report updated successfully.")
     } catch (err) {
       console.error("Save report error:", err)
       setError(err instanceof Error ? err.message : "Failed to update weekly report.")
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -692,6 +951,7 @@ export default function WeeklyReportDetailPage() {
 
     const c = {
       dark: [9, 9, 11] as [number, number, number],
+      slate50: [248, 250, 252] as [number, number, number],
       zinc600: [82, 82, 91] as [number, number, number],
       zinc500: [113, 113, 122] as [number, number, number],
       zinc300: [212, 212, 216] as [number, number, number],
@@ -706,6 +966,9 @@ export default function WeeklyReportDetailPage() {
       amberBg: [254, 243, 199] as [number, number, number],
       amberText: [120, 53, 15] as [number, number, number],
       rose: [244, 63, 94] as [number, number, number],
+      blue: [37, 99, 235] as [number, number, number],
+      blueBg: [239, 246, 255] as [number, number, number],
+      blueText: [29, 78, 216] as [number, number, number],
     }
 
     function needsNewPage(space: number) {
@@ -715,58 +978,101 @@ export default function WeeklyReportDetailPage() {
       }
     }
 
-    // â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    doc.setFillColor(...c.dark)
-    doc.rect(0, 0, pageW, 54, "F")
-
-    // Logo pill
-    doc.setFillColor(...c.white)
-    doc.roundedRect(margin, 11, 34, 11, 2, 2, "F")
-    doc.setFontSize(8)
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(...c.dark)
-    doc.text("MarginFlow", margin + 3.5, 18.5)
-
-    // Title
-    doc.setFontSize(15)
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(...c.white)
-    doc.text("Weekly Intelligence Report", margin + 40, 18.5)
-
-    // Company
-    doc.setFontSize(10)
-    doc.setFont("helvetica", "normal")
-    doc.setTextColor(161, 161, 170)
-    doc.text(report?.company_name || "Company", margin, 32)
-
-    // Week label
-    doc.setFontSize(9)
-    doc.text(buildWeekLabel(report), margin, 40)
-
-    // Generated date (right-aligned)
+    // ── HEADER ────────────────────────────────────────────────────
     const genDate = `Generated ${new Date().toLocaleDateString("en-IE", {
       day: "2-digit",
       month: "short",
       year: "numeric",
     })}`
-    doc.setFontSize(8)
-    const genW = doc.getTextWidth(genDate)
-    doc.text(genDate, pageW - margin - genW, 40)
+    const weekLabel = buildWeekLabel(report)
+    const weekRange =
+      report?.week_start && report?.week_end
+        ? `${formatDate(report.week_start)} → ${formatDate(report.week_end)}`
+        : report?.week_ending
+          ? formatDate(report.week_ending)
+          : "-"
+    const companyName = report?.company_name || "Company"
 
-    // Health badge
+    doc.setFillColor(...c.slate50)
+    doc.rect(0, 0, pageW, 48, "F")
+    doc.setFillColor(...c.blue)
+    doc.rect(0, 0, pageW, 1.5, "F")
+    doc.setDrawColor(...c.zinc200)
+    doc.line(margin, 48, pageW - margin, 48)
+
+    // Brand mark and wordmark
+    const logoX = margin
+    const logoY = 9
+    doc.setFillColor(...c.dark)
+    doc.roundedRect(logoX, logoY + 0.25, 8.8, 8.8, 2.2, 2.2, "F")
+    doc.setFillColor(...c.blue)
+    doc.roundedRect(logoX + 1.35, logoY + 4.95, 1.45, 2.35, 0.55, 0.55, "F")
+    doc.roundedRect(logoX + 3.55, logoY + 2.95, 1.45, 4.35, 0.55, 0.55, "F")
+    doc.roundedRect(logoX + 5.75, logoY + 1.15, 1.45, 6.15, 0.55, 0.55, "F")
+    doc.setDrawColor(...c.blue)
+    doc.setLineWidth(0.7)
+    doc.line(logoX + 1.15, logoY + 7.15, logoX + 7.85, logoY + 2.45)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(12)
+    doc.setTextColor(...c.dark)
+    doc.text("Margin", logoX + 12.8, logoY + 5.9)
+    doc.setTextColor(...c.blueText)
+    doc.text("Flow", logoX + 32.0, logoY + 5.9)
+
+    doc.setFontSize(7.5)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...c.zinc500)
+    doc.text("Weekly Intelligence Report", logoX, logoY + 13.2)
+
+    // Company name and meta chips
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(...c.dark)
+    doc.text(companyName, margin, 26.6)
+
+    const chipY = 31.2
+    const chipH = 7.5
+    const chipGap = 2.2
+    const chips = [
+      { text: weekLabel, fill: c.blueBg, textColor: c.blueText },
+      { text: weekRange, fill: c.zinc100, textColor: c.zinc600 },
+    ]
+    let chipX = margin
+    chips.forEach((chip) => {
+      const chipW = doc.getTextWidth(chip.text) + 8.5
+      doc.setFillColor(...chip.fill)
+      doc.roundedRect(chipX, chipY, chipW, chipH, 2.5, 2.5, "F")
+      doc.setFontSize(7)
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(...chip.textColor)
+      doc.text(chip.text, chipX + chipW / 2, chipY + 5.0, { align: "center" })
+      chipX += chipW + chipGap
+    })
+
+    // Healthy badge and generated date on the right
+    const badgeText = healthLabel
+    const badgeW = doc.getTextWidth(badgeText) + 10
+    const badgeX = pageW - margin - badgeW
     const badgeBg =
-      netMarginPct >= 0.18 && labourPct <= 0.32 ? c.emerald : netMarginPct >= 0.1 ? c.amber : c.rose
+      netMarginPct >= 0.18 && labourPct <= 0.32 ? c.emeraldBg : netMarginPct >= 0.1 ? c.amberBg : c.rose
+    const badgeFg =
+      netMarginPct >= 0.18 && labourPct <= 0.32 ? c.emeraldText : netMarginPct >= 0.1 ? c.amberText : c.white
     doc.setFillColor(...badgeBg)
-    doc.roundedRect(pageW - margin - 38, 27, 38, 9, 2, 2, "F")
+    doc.roundedRect(badgeX, logoY + 0.2, badgeW, 7.8, 2.6, 2.6, "F")
     doc.setFontSize(7)
     doc.setFont("helvetica", "bold")
-    doc.setTextColor(...c.white)
-    const bw = doc.getTextWidth(healthLabel)
-    doc.text(healthLabel, pageW - margin - 19 - bw / 2, 33.2)
+    doc.setTextColor(...badgeFg)
+    doc.text(badgeText, badgeX + badgeW / 2, logoY + 5.2, { align: "center" })
 
-    y = 65
+    doc.setFontSize(7.5)
+    doc.setFont("helvetica", "normal")
+    doc.setTextColor(...c.zinc500)
+    const genW = doc.getTextWidth(genDate)
+    doc.text(genDate, pageW - margin - genW, logoY + 14)
 
-    // â”€â”€ KPI CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    y = 58
+
+    // ── KPI CARDS ─────────────────────────────────────────────────
     const kpiItems = [
       { label: "Sales ex VAT", value: formatMoney(salesExVat), sub: "Core revenue base", color: c.dark },
       {
@@ -811,7 +1117,7 @@ export default function WeeklyReportDetailPage() {
 
     y += 40
 
-    // â”€â”€ MARGIN SNAPSHOT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── MARGIN SNAPSHOT ───────────────────────────────────────────
     doc.setFontSize(11)
     doc.setFont("helvetica", "bold")
     doc.setTextColor(...c.dark)
@@ -852,7 +1158,7 @@ export default function WeeklyReportDetailPage() {
     doc.line(margin, y, margin + contentW, y)
     y += 10
 
-    // â”€â”€ KEY SIGNALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── KEY SIGNALS ───────────────────────────────────────────────
     if (goodSignals.length > 0 || warningSignals.length > 0) {
       needsNewPage(20)
       doc.setFontSize(11)
@@ -892,7 +1198,7 @@ export default function WeeklyReportDetailPage() {
       y += 4
     }
 
-    // â”€â”€ NOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── NOTES ─────────────────────────────────────────────────────
     if (form.notes) {
       needsNewPage(20)
       doc.setFontSize(11)
@@ -914,7 +1220,7 @@ export default function WeeklyReportDetailPage() {
       y += noteH + 10
     }
 
-    // â”€â”€ GLOSSARY PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── GLOSSARY PAGE ─────────────────────────────────────────────
     doc.addPage()
     doc.setFillColor(...c.dark)
     doc.rect(0, 0, pageW, 28, "F")
@@ -936,7 +1242,7 @@ export default function WeeklyReportDetailPage() {
       },
       {
         term: "Gross Margin %",
-        def: "Gross Profit Ã· Revenue Ã— 100. A gross margin above 65% is considered healthy for a cafÃ© or bakery operation.",
+        def: "Gross Profit ÷ Revenue × 100. A gross margin above 65% is considered healthy for a café or bakery operation.",
       },
       {
         term: "Net Profit",
@@ -944,7 +1250,7 @@ export default function WeeklyReportDetailPage() {
       },
       {
         term: "Net Margin %",
-        def: "Net Profit Ã· Revenue Ã— 100. Target 18%+ for a healthy and well-managed operation.",
+        def: "Net Profit ÷ Revenue × 100. Target 18%+ for a healthy and well-managed operation.",
       },
       {
         term: "Labour %",
@@ -956,15 +1262,15 @@ export default function WeeklyReportDetailPage() {
       },
       {
         term: "Fixed Costs",
-        def: "Recurring costs that remain constant regardless of revenue levels â€” rent, insurance, utilities.",
+        def: "Recurring costs that remain constant regardless of revenue levels — rent, insurance, utilities.",
       },
       {
         term: "Variable Costs",
-        def: "Costs that fluctuate with operational activity â€” packaging, cleaning supplies, and other day-to-day operational expenses.",
+        def: "Costs that fluctuate with operational activity — packaging, cleaning supplies, and other day-to-day operational expenses.",
       },
       {
         term: "AOV (Average Order Value)",
-        def: "Average revenue per transaction: Total Revenue Ã· Number of Transactions. A rising AOV signals effective upselling or pricing strength.",
+        def: "Average revenue per transaction: Total Revenue ÷ Number of Transactions. A rising AOV signals effective upselling or pricing strength.",
       },
       {
         term: "VAT Due",
@@ -999,7 +1305,7 @@ export default function WeeklyReportDetailPage() {
       y += rowH + 3
     })
 
-    // â”€â”€ PAGE FOOTERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── PAGE FOOTERS ──────────────────────────────────────────────
     const totalPages = doc.getNumberOfPages()
     for (let p = 1; p <= totalPages; p++) {
       doc.setPage(p)
@@ -1008,7 +1314,7 @@ export default function WeeklyReportDetailPage() {
       doc.setTextColor(...c.zinc500)
       doc.setDrawColor(...c.zinc200)
       doc.line(margin, pageH - 12, pageW - margin, pageH - 12)
-      doc.text("MarginFlow â€” Confidential Weekly Report", margin, pageH - 7)
+      doc.text("MarginFlow — Confidential Weekly Report", margin, pageH - 7)
       const pLabel = `Page ${p} of ${totalPages}`
       doc.text(pLabel, pageW - margin - doc.getTextWidth(pLabel), pageH - 7)
     }
@@ -1023,8 +1329,9 @@ export default function WeeklyReportDetailPage() {
       setBusyAction("pdf")
       setError(null)
       setSuccessMessage(null)
+      setSaveError(null)
 
-      await saveReportSilently()
+      await flushPendingChanges()
       await reloadBreakdown()
       await generateAndDownloadPdf()
 
@@ -1050,8 +1357,10 @@ export default function WeeklyReportDetailPage() {
     try {
       setSendingEmail(true)
       setError(null)
+      setSaveError(null)
 
-      await saveReportSilently()
+      await flushPendingChanges()
+      await reloadBreakdown()
 
       const response = await fetch("/api/send-email", {
         method: "POST",
@@ -1156,8 +1465,8 @@ export default function WeeklyReportDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-6 py-8 md:px-8 xl:px-10">
-        <div className="mx-auto max-w-7xl">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1440px]">
           <SectionCard title="Loading report" description="Fetching weekly intelligence data.">
             <p className="text-sm text-zinc-500">Loading weekly report...</p>
           </SectionCard>
@@ -1168,9 +1477,9 @@ export default function WeeklyReportDetailPage() {
 
   if (!report) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-6 py-8 md:px-8 xl:px-10">
-        <div className="mx-auto max-w-7xl">
-          <div className="rounded-[28px] border border-red-200 bg-red-50 p-8 text-red-700">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1440px]">
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-8 text-red-700 shadow-sm">
             Weekly report not found.
           </div>
         </div>
@@ -1179,7 +1488,7 @@ export default function WeeklyReportDetailPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.98),_rgba(244,244,245,1)_38%,_rgba(235,235,240,1)_100%)] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       {emailModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -1220,10 +1529,10 @@ export default function WeeklyReportDetailPage() {
               </button>
             </div>
 
-            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 mb-5">
+            <div className="mb-5 rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3">
               <p className="text-xs font-medium text-zinc-500">Report</p>
               <p className="mt-1 text-sm font-semibold text-zinc-950">
-                {report.company_name} Â· {buildWeekLabel(report)}
+                {report.company_name} · {buildWeekLabel(report)}
               </p>
             </div>
 
@@ -1240,7 +1549,7 @@ export default function WeeklyReportDetailPage() {
                 }}
                 placeholder="e.g. owner@company.com"
                 autoFocus
-                className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
               />
             </div>
 
@@ -1248,7 +1557,7 @@ export default function WeeklyReportDetailPage() {
               <button
                 onClick={handleConfirmSendEmail}
                 disabled={sendingEmail || !emailTo}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-zinc-950 px-4 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Mail size={15} />
                 {sendingEmail ? "Sending..." : "Send Report"}
@@ -1262,7 +1571,7 @@ export default function WeeklyReportDetailPage() {
                   }
                 }}
                 disabled={sendingEmail}
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                className="inline-flex h-11 items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -1270,75 +1579,44 @@ export default function WeeklyReportDetailPage() {
           </div>
         </div>
       ) : null}
-      <WorkspacePageHeader
-        label="Weekly report detail"
-        title="Weekly Intelligence Report"
-        subtitle="Review, edit, and distribute the companyâ€™s weekly performance pack."
-        companyName={report.company_name || "Selected Company"}
-        companyMeta={buildWeekLabel(report)}
-        companyBadge={
-          <span
-            className={cn(
-              "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium",
-              healthBadgeClass
-            )}
+
+      <div className="mx-auto w-full max-w-[1440px] space-y-6">
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href={`/companies/${companyId}/reports`}
+            onClick={(e) => {
+              if (saving || hasUnsavedChanges || saveError) {
+                const ok = window.confirm(
+                  "You have unsaved changes or a save is still in progress. Leave this page anyway?"
+                )
+                if (!ok) {
+                  e.preventDefault()
+                }
+              }
+            }}
+            className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
           >
-            {healthLabel}
-          </span>
-        }
-        actions={
-          <>
-            <button
-              onClick={handleGeneratePdf}
-              disabled={busyAction !== null || saving}
-              className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Download size={16} />
-              {busyAction === "pdf" ? "Generating..." : "Generate PDF"}
-            </button>
+            <ArrowLeft size={16} />
+            Back to Weekly Reports
+          </Link>
+        </div>
 
-            <button
-              onClick={handleSendEmail}
-              disabled={busyAction !== null || saving}
-              className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Mail size={16} />
-              {busyAction === "email" ? "Sending..." : "Send by Email"}
-            </button>
+        <section className="rounded-3xl border border-zinc-200/70 bg-white p-5 shadow-sm md:p-6">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                Weekly report detail
+              </div>
 
-            <button
-              onClick={handleSave}
-              disabled={saving || busyAction !== null}
-              className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Save size={16} />
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
-          </>
-        }
-      />
-
-      <div className="mx-auto max-w-7xl">
-        <div className="hidden mb-6 flex flex-col gap-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <Link
-                href={`/companies/${companyId}/reports`}
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-2 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50"
-              >
-                <ArrowLeft size={16} />
-                Back to Weekly Reports
-              </Link>
-
-              <div className="inline-flex max-w-full items-start gap-4 rounded-[28px] border border-black/5 bg-[linear-gradient(to_bottom,#ffffff,#fafafa)] px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.04)]">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-zinc-950 text-white">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-zinc-950 text-white shadow-sm">
                   <Building2 size={20} />
                 </div>
 
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="truncate text-[1.15rem] font-semibold tracking-[-0.02em] text-zinc-950">
-                      {report.company_name || "Selected Company"} â€” Weekly Intelligence Report
+                <div className="min-w-0 space-y-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-[2rem] font-semibold tracking-[-0.03em] text-zinc-950 md:text-[2.35rem]">
+                      Weekly Intelligence Report
                     </h1>
                     <span
                       className={cn(
@@ -1350,16 +1628,34 @@ export default function WeeklyReportDetailPage() {
                     </span>
                   </div>
 
-                  <p className="mt-1 text-base text-zinc-600">{buildWeekLabel(report)}</p>
+                  <p className="max-w-3xl text-sm leading-6 text-zinc-500">
+                    Review, edit, and distribute the company&apos;s weekly performance pack.
+                  </p>
                 </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-600">
+                  Week ending {formatDate(report.week_ending)}
+                </span>
+                {isoWeekInfo ? (
+                  <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600">
+                    ISO Week {isoWeekInfo.isoWeek} · {isoWeekInfo.isoYear}
+                  </span>
+                ) : null}
+                {isoWeekInfo ? (
+                  <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600">
+                    {formatDateLong(isoWeekInfo.start)}{" \u2192 "}{formatDateLong(isoWeekInfo.end)}
+                  </span>
+                ) : null}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 self-start">
+            <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
               <button
                 onClick={handleGeneratePdf}
                 disabled={busyAction !== null || saving}
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Download size={16} />
                 {busyAction === "pdf" ? "Generating..." : "Generate PDF"}
@@ -1368,37 +1664,28 @@ export default function WeeklyReportDetailPage() {
               <button
                 onClick={handleSendEmail}
                 disabled={busyAction !== null || saving}
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Mail size={16} />
                 {busyAction === "email" ? "Sending..." : "Send by Email"}
               </button>
-
-              <button
-                onClick={handleSave}
-                disabled={saving || busyAction !== null}
-                className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Save size={16} />
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
             </div>
           </div>
+        </section>
 
-          {error ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
+            {error}
+          </div>
+        ) : null}
 
-          {successMessage ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
-              {successMessage}
-            </div>
-          ) : null}
-        </div>
+        {successMessage ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 shadow-sm">
+            {successMessage}
+          </div>
+        ) : null}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPI
             icon={<Wallet size={18} />}
             label="Sales ex VAT"
@@ -1420,7 +1707,7 @@ export default function WeeklyReportDetailPage() {
             value={formatPct(netMarginPct)}
             caption="Profitability quality"
             tone={netMarginPct >= 0.18 ? "success" : "default"}
-            tooltip="Net Profit Ã· Revenue Ã— 100. Target 18%+ for a healthy, well-managed operation."
+            tooltip="Net Profit ÷ Revenue × 100. Target 18%+ for a healthy, well-managed operation."
           />
           <KPI
             icon={<Settings2 size={18} />}
@@ -1432,15 +1719,15 @@ export default function WeeklyReportDetailPage() {
           />
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[1.22fr_0.78fr]">
-          <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <div className="space-y-6 xl:col-span-8">
             <SectionCard
               title="Core Report"
               description="Keep the weekly report clean and operational. Use this as the main financial layer for the week."
               icon={<ReceiptText size={18} />}
             >
               <div className="space-y-4">
-                <SubCard title="Week Setup" icon={<CalendarDays size={15} />}>
+                <SubCard title="A. Week Setup" icon={<CalendarDays size={15} />}>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Field
                       label="Week Ending"
@@ -1449,21 +1736,23 @@ export default function WeeklyReportDetailPage() {
                       onChange={(value) => setForm((prev) => ({ ...prev, week_ending: value }))}
                     />
 
-                    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5">
-                      <p className="text-sm font-medium text-zinc-700">ISO Week</p>
-                      <p className="mt-2 text-sm text-zinc-500">
-                        {isoWeekInfo
-                          ? `Week ${isoWeekInfo.isoWeek} \u00B7 ${isoWeekInfo.isoYear}`
-                          : "Select a date"}
+                    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                        ISO Week
                       </p>
-                      <p className="mt-1 text-xs text-zinc-400">
-                        {isoWeekInfo ? `${formatDateLong(isoWeekInfo.start)} \u2192 ${formatDateLong(isoWeekInfo.end)}` : ""}
+                      <p className="mt-2 text-sm font-medium text-zinc-950">
+                        {isoWeekInfo ? `Week ${isoWeekInfo.isoWeek} · ${isoWeekInfo.isoYear}` : "Select a date"}
+                      </p>
+                      <p className="mt-1 text-sm text-zinc-500">
+                        {isoWeekInfo
+                          ? `${formatDateLong(isoWeekInfo.start)} \u2192 ${formatDateLong(isoWeekInfo.end)}`
+                          : "The calendar week range will appear here."}
                       </p>
                     </div>
                   </div>
                 </SubCard>
 
-                <SubCard title="Revenue" icon={<Wallet size={15} />}>
+                <SubCard title="B. Revenue" icon={<Wallet size={15} />}>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <MoneyField
                       label="Sales inc VAT"
@@ -1483,7 +1772,7 @@ export default function WeeklyReportDetailPage() {
                   </div>
                 </SubCard>
 
-                <SubCard title="Cost Structure" icon={<Settings2 size={15} />}>
+                <SubCard title="C. Costs" icon={<Settings2 size={15} />}>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <MoneyField
                       label="Wages"
@@ -1501,24 +1790,24 @@ export default function WeeklyReportDetailPage() {
                       }
                     />
 
-                    <div className="md:col-span-2 rounded-2xl border border-zinc-200 bg-white p-4">
-                      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-zinc-700">Food Cost</p>
-                          <p className="mt-1 text-sm text-zinc-500">
+                    <div className="md:col-span-2 rounded-3xl border border-zinc-200 bg-white p-4 md:p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-zinc-950">Food Cost</p>
+                          <p className="text-sm leading-6 text-zinc-500">
                             Enter a manual amount or calculate it as a percentage of sales.
                           </p>
                         </div>
 
-                        <div className="inline-flex rounded-2xl border border-zinc-200 bg-zinc-50 p-1">
+                        <div className="inline-flex rounded-full border border-zinc-200 bg-zinc-100 p-1">
                           <button
                             type="button"
                             onClick={() => setFoodCostMode("manual")}
                             className={cn(
-                              "rounded-xl px-3 py-2 text-sm transition",
+                              "inline-flex h-9 items-center rounded-full px-3.5 text-sm font-medium transition",
                               foodCostMode === "manual"
                                 ? "bg-zinc-950 text-white shadow-sm"
-                                : "text-zinc-500"
+                                : "text-zinc-600 hover:text-zinc-950"
                             )}
                           >
                             Manual
@@ -1527,10 +1816,10 @@ export default function WeeklyReportDetailPage() {
                             type="button"
                             onClick={() => setFoodCostMode("percent")}
                             className={cn(
-                              "rounded-xl px-3 py-2 text-sm transition",
+                              "inline-flex h-9 items-center rounded-full px-3.5 text-sm font-medium transition",
                               foodCostMode === "percent"
                                 ? "bg-zinc-950 text-white shadow-sm"
-                                : "text-zinc-500"
+                                : "text-zinc-600 hover:text-zinc-950"
                             )}
                           >
                             % of Sales
@@ -1538,7 +1827,7 @@ export default function WeeklyReportDetailPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                         {foodCostMode === "manual" ? (
                           <MoneyField
                             label="Food Cost"
@@ -1554,12 +1843,17 @@ export default function WeeklyReportDetailPage() {
                               value={foodCostPercent}
                               onChange={setFoodCostPercent}
                             />
-                            <MoneyField
-                              label="Calculated Food Cost"
-                              value={computedFoodCost.toFixed(2)}
-                              onChange={() => {}}
-                              disabled
-                            />
+                            <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 px-4 py-3.5">
+                              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                                Calculated Food Cost
+                              </p>
+                              <p className="mt-2 text-lg font-semibold tracking-tight text-zinc-950">
+                                {formatMoney(computedFoodCost)}
+                              </p>
+                              <p className="mt-1 text-sm text-zinc-500">
+                                Updates live from the percentage of sales.
+                              </p>
+                            </div>
                           </>
                         )}
                       </div>
@@ -1599,12 +1893,12 @@ export default function WeeklyReportDetailPage() {
                   </div>
                 </SubCard>
 
-                <SubCard title="Notes" icon={<ReceiptText size={15} />}>
+                <SubCard title="D. Notes" icon={<ReceiptText size={15} />}>
                   <textarea
                     rows={5}
                     value={form.notes || ""}
                     onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                    className="h-32 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
                     placeholder="Weekly notes, anomalies, events or operational observations..."
                   />
                 </SubCard>
@@ -1616,38 +1910,44 @@ export default function WeeklyReportDetailPage() {
               description="Categorized financial lines for a cleaner, more scalable weekly structure."
               icon={<Layers3 size={18} />}
             >
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className="relative rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="relative rounded-3xl border border-zinc-200/70 bg-zinc-50/70 p-4 shadow-sm">
                   <div className="absolute right-3 top-3">
                     <TooltipIcon definition="Number of categorized P&L entries attached to this report. More lines = more detailed financial visibility." />
                   </div>
-                  <p className="text-xs font-medium text-zinc-500">Breakdown Lines</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    Breakdown Lines
+                  </p>
+                  <p className="mt-2 text-[2rem] font-semibold tracking-tight text-zinc-950">
                     {breakdownLineCount}
                   </p>
-                  <p className="mt-2 text-xs text-zinc-500">Categorized entries in this report</p>
+                  <p className="mt-2 text-sm text-zinc-500">Categorized entries in this report</p>
                 </div>
 
-                <div className="relative rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <div className="relative rounded-3xl border border-zinc-200/70 bg-zinc-50/70 p-4 shadow-sm">
                   <div className="absolute right-3 top-3">
                     <TooltipIcon definition="Sum of all categorized P&L line items in this report. Compare against the core report totals to check reconciliation." />
                   </div>
-                  <p className="text-xs font-medium text-zinc-500">Breakdown Total</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    Breakdown Total
+                  </p>
+                  <p className="mt-2 text-[2rem] font-semibold tracking-tight text-zinc-950">
                     {formatMoney(breakdownTotal)}
                   </p>
-                  <p className="mt-2 text-xs text-zinc-500">Sum of all categorized lines</p>
+                  <p className="mt-2 text-sm text-zinc-500">Sum of all categorized lines</p>
                 </div>
 
-                <div className="relative rounded-2xl border border-black/5 bg-zinc-50 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <div className="relative rounded-3xl border border-zinc-200/70 bg-zinc-50/70 p-4 shadow-sm">
                   <div className="absolute right-3 top-3">
-                    <TooltipIcon definition="The highest-value categorized P&L line item in this report â€” the single largest cost or revenue driver." />
+                    <TooltipIcon definition="The highest-value categorized P&L line item in this report — the single largest cost or revenue driver." />
                   </div>
-                  <p className="text-xs font-medium text-zinc-500">Top Line</p>
-                  <p className="mt-2 text-xl font-semibold tracking-tight text-zinc-950">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    Top Line
+                  </p>
+                  <p className="mt-2 text-lg font-semibold tracking-tight text-zinc-950">
                     {topBreakdownItem?.category_name || "No items yet"}
                   </p>
-                  <p className="mt-2 text-xs text-zinc-500">
+                  <p className="mt-2 text-sm text-zinc-500">
                     {topBreakdownItem
                       ? formatMoney(topBreakdownItem.amount)
                       : "Largest categorized amount"}
@@ -1655,42 +1955,46 @@ export default function WeeklyReportDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-[20px] border border-zinc-200 bg-zinc-50/70 p-4">
+              <div className="mt-5 rounded-3xl border border-zinc-200/70 bg-zinc-50/70 p-4 md:p-5">
                 <div className="mb-4">
                   <h4 className="text-sm font-semibold text-zinc-950">Add Breakdown Item</h4>
-                  <p className="mt-1 text-sm text-zinc-500">
+                  <p className="mt-1 text-sm leading-6 text-zinc-500">
                     Use mapped categories like Wages, Holiday Pay and Food Purchases to feed the
                     main report automatically.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.2fr_0.8fr]">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-zinc-700">Category</label>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+                  <div className="md:col-span-8">
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                      Category
+                    </label>
                     <select
                       value={newItem.category_id}
                       onChange={(e) =>
                         setNewItem((prev) => ({ ...prev, category_id: e.target.value }))
                       }
-                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                      className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
                     >
                       <option value="">Select category</option>
                       {categories.map((category) => (
                         <option key={category.id} value={category.id}>
                           {category.name} ({category.type}
-                          {category.group ? ` â€¢ ${category.group}` : ""})
+                          {category.group ? ` • ${category.group}` : ""})
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <MoneyField
-                    label="Amount"
-                    value={newItem.amount}
-                    onChange={(value) => setNewItem((prev) => ({ ...prev, amount: value }))}
-                  />
+                  <div className="md:col-span-4">
+                    <MoneyField
+                      label="Amount"
+                      value={newItem.amount}
+                      onChange={(value) => setNewItem((prev) => ({ ...prev, amount: value }))}
+                    />
+                  </div>
 
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-12">
                     <Field
                       label="Notes"
                       value={newItem.notes}
@@ -1700,12 +2004,12 @@ export default function WeeklyReportDetailPage() {
                   </div>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 flex justify-end">
                   <button
                     type="button"
                     onClick={handleAddBreakdownItem}
                     disabled={addingItem}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-zinc-950 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Plus size={16} />
                     {addingItem ? "Adding..." : "Add Breakdown Item"}
@@ -1715,13 +2019,16 @@ export default function WeeklyReportDetailPage() {
 
               <div className="mt-4">
                 {!breakdown || breakdown.items.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-sm text-zinc-500">
-                    No breakdown items added to this report yet.
+                  <div className="rounded-3xl border border-dashed border-zinc-200 bg-white px-5 py-10 text-sm text-zinc-500 shadow-sm">
+                    <p className="font-medium text-zinc-700">No breakdown items added yet.</p>
+                    <p className="mt-1 text-sm leading-6 text-zinc-500">
+                      Add categorized lines to standardize this weekly report.
+                    </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+                  <div className="overflow-hidden rounded-3xl border border-zinc-200/70 bg-white shadow-sm">
                     <table className="min-w-full text-sm">
-                      <thead className="bg-zinc-50 text-left text-zinc-500">
+                      <thead className="bg-zinc-50/90 text-left text-zinc-500">
                         <tr>
                           <th className="px-4 py-4 font-medium">Category</th>
                           <th className="px-4 py-4 font-medium">Type</th>
@@ -1737,7 +2044,7 @@ export default function WeeklyReportDetailPage() {
                           .map((item) => (
                             <tr
                               key={item.id}
-                              className="border-t border-zinc-100 bg-white transition hover:bg-zinc-50"
+                              className="border-t border-zinc-100 bg-white transition hover:bg-zinc-50/70"
                             >
                               <td className="px-4 py-4 font-medium text-zinc-950">
                                 {item.category_name}
@@ -1771,7 +2078,7 @@ export default function WeeklyReportDetailPage() {
                                   type="button"
                                   onClick={() => handleDeleteBreakdownItem(item.id)}
                                   disabled={deletingItemId === item.id}
-                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex h-9 items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   <Trash2 size={14} />
                                   {deletingItemId === item.id ? "Deleting..." : "Delete"}
@@ -1787,10 +2094,48 @@ export default function WeeklyReportDetailPage() {
             </SectionCard>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 xl:col-span-4 xl:sticky xl:top-6 self-start">
+            <div className="rounded-3xl border border-zinc-200/70 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    Save status
+                  </p>
+                  <div
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium",
+                      getSaveToneClass(saveStatus.tone)
+                    )}
+                  >
+                    <span className="flex items-center">{saveStatus.icon}</span>
+                    <span>{saveStatus.label}</span>
+                  </div>
+                  <p className="text-sm leading-6 text-zinc-500">{saveStatus.helper}</p>
+                  {saveError && hasUnsavedChanges ? (
+                    <p className="text-sm leading-6 text-rose-600">{saveError}</p>
+                  ) : null}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || busyAction !== null}
+                  className={cn(
+                    "inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-medium shadow-sm transition",
+                    saving
+                      ? "cursor-not-allowed border border-zinc-200 bg-zinc-50 text-zinc-400"
+                      : "border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
+                  )}
+                >
+                  <Save size={16} />
+                  {getSaveButtonLabel()}
+                </button>
+              </div>
+            </div>
+
             <SectionCard
-              title="Margin Snapshot"
-              description="The financial story of this week, at a glance."
+              title="Live Margin Snapshot"
+              description="The financial story of this week, at a glance. Updates as you edit."
               icon={<Target size={18} />}
             >
               <div className="space-y-3">
@@ -1808,12 +2153,12 @@ export default function WeeklyReportDetailPage() {
                 <ExecutiveRow
                   label="Gross Margin"
                   value={formatPct(grossMarginPct)}
-                  tooltip="Gross Profit Ã· Revenue Ã— 100. Above 65% is considered healthy for a cafÃ© or bakery operation."
+                  tooltip="Gross Profit ÷ Revenue × 100. Above 65% is considered healthy for a café or bakery operation."
                 />
                 <ExecutiveRow
                   label="Labour Total"
                   value={formatMoney(labourTotal)}
-                  tooltip="Total wages and holiday pay for the period â€” the combined direct labour cost."
+                  tooltip="Total wages and holiday pay for the period — the combined direct labour cost."
                 />
                 <ExecutiveRow
                   label="Labour %"
@@ -1831,7 +2176,7 @@ export default function WeeklyReportDetailPage() {
                   label="Net Margin"
                   value={formatPct(netMarginPct)}
                   valueClassName={netMarginPct >= 0.18 ? "text-emerald-600" : ""}
-                  tooltip="Net Profit Ã· Revenue Ã— 100. Target 18%+ for a healthy, well-managed operation."
+                  tooltip="Net Profit ÷ Revenue × 100. Target 18%+ for a healthy, well-managed operation."
                 />
               </div>
             </SectionCard>
@@ -1859,12 +2204,10 @@ export default function WeeklyReportDetailPage() {
                 ) : null}
               </div>
             </SectionCard>
-
           </div>
         </div>
-
       </div>
-    </div>
+    </main>
   )
 }
 

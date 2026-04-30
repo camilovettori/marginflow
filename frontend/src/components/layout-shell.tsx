@@ -10,7 +10,10 @@ export default function LayoutShell({
 }) {
   const pathname = usePathname()
 
-  const hideTopBar = pathname === "/login" || pathname === "/signup"
+  const hideTopBar =
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/forgot-password"
 
   if (hideTopBar) {
     return <>{children}</>

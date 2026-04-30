@@ -132,7 +132,48 @@ function sectionIconTone(tone: MetricTone) {
   }
 }
 
-function MetricCard({
+function severityTone(severity: CompanyAnalyticsResponse["insights"][number]["severity"]) {
+  switch (severity) {
+    case "critical":
+      return {
+        container: "border-rose-200 bg-rose-50/80 text-rose-900",
+        label: "Critical",
+        accent: "bg-rose-500",
+      }
+    case "warning":
+      return {
+        container: "border-amber-200 bg-amber-50/80 text-amber-900",
+        label: "Warning",
+        accent: "bg-amber-500",
+      }
+    case "success":
+      return {
+        container: "border-emerald-200 bg-emerald-50/80 text-emerald-900",
+        label: "Opportunity",
+        accent: "bg-emerald-500",
+      }
+    default:
+      return {
+        container: "border-sky-200 bg-sky-50/80 text-sky-900",
+        label: "Insight",
+        accent: "bg-sky-500",
+      }
+  }
+}
+
+function deltaChipTone(delta?: number | null) {
+  if (delta == null) return "border-zinc-200 bg-zinc-50 text-zinc-500"
+  return delta >= 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"
+}
+
+function metricGroupTone(title: string) {
+  if (title === "Profitability") return "border-sky-200 bg-sky-50/70"
+  if (title === "Revenue quality") return "border-emerald-200 bg-emerald-50/70"
+  if (title === "Forecasting") return "border-amber-200 bg-amber-50/70"
+  return "border-zinc-200 bg-zinc-50/70"
+}
+
+function ExecutiveMetricCard({
   title,
   value,
   subtitle,
@@ -148,43 +189,24 @@ function MetricCard({
   icon?: ReactNode
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+    <div className="rounded-[28px] border border-zinc-200/70 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{title}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 md:text-[2.3rem]">{value}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">{title}</p>
+          <p className="mt-2 text-[2rem] font-semibold tracking-[-0.05em] text-zinc-950 md:text-[2.25rem]">
+            {value}
+          </p>
         </div>
         {icon ? <div className={`rounded-2xl border p-2 ${sectionIconTone(tone)}`}>{icon}</div> : null}
       </div>
-      <p className="mt-3 text-sm leading-6 text-zinc-500">{subtitle}</p>
-      {delta ? <p className="mt-2 text-sm font-medium text-zinc-700">{delta}</p> : null}
-    </div>
-  )
-}
-
-function CompactMetricCard({
-  title,
-  value,
-  subtitle,
-  tone = "default",
-}: {
-  title: string
-  value: string
-  subtitle: string
-  tone?: MetricTone
-}) {
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.025)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{title}</p>
-          <p className="mt-1.5 text-lg font-semibold tracking-tight text-zinc-950">{value}</p>
-        </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${sectionIconTone(tone)}`}>
-          KPI
-        </span>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {delta ? (
+          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${deltaChipTone(delta.startsWith("-") ? -1 : 1)}`}>
+            {delta}
+          </span>
+        ) : null}
+        <p className="text-sm leading-6 text-zinc-500">{subtitle}</p>
       </div>
-      <p className="mt-2 text-xs leading-5 text-zinc-500">{subtitle}</p>
     </div>
   )
 }
@@ -218,41 +240,101 @@ function SectionCard({
   )
 }
 
-function InsightCard({
+function PriorityInsightCard({
   insight,
 }: {
   insight: CompanyAnalyticsResponse["insights"][number]
 }) {
-  const toneMap = {
-    critical: "border-rose-200 bg-rose-50/70 text-rose-800",
-    warning: "border-amber-200 bg-amber-50/70 text-amber-800",
-    success: "border-emerald-200 bg-emerald-50/70 text-emerald-800",
-    info: "border-sky-200 bg-sky-50/70 text-sky-800",
-  }
+  const tone = severityTone(insight.severity)
 
   return (
-    <div className={`rounded-2xl border p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${toneMap[insight.severity]}`}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">{insight.severity}</p>
-        <span className="rounded-full border border-current/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]">
-          Insight
-        </span>
+    <div className={`rounded-[28px] border p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${tone.container}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] opacity-70">{tone.label}</p>
+          <h3 className="mt-2 text-base font-semibold tracking-tight">{insight.title}</h3>
+        </div>
+        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${tone.accent}`} />
       </div>
-      <h3 className="mt-3 text-base font-semibold tracking-tight">{insight.title}</h3>
-      <p className="mt-1.5 text-sm leading-6 opacity-90">{insight.summary}</p>
-      <div className="mt-3 rounded-2xl border border-current/10 bg-white/40 px-3 py-2.5">
+
+      <p className="mt-3 text-sm leading-6 opacity-90">{insight.summary}</p>
+
+      <div className="mt-4 rounded-2xl border border-current/10 bg-white/60 p-3.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">Recommended action</p>
-        <p className="mt-1 text-sm leading-6 opacity-90">{insight.recommended_action}</p>
+        <p className="mt-1.5 text-sm leading-6 opacity-90">{insight.recommended_action}</p>
       </div>
+
       {insight.evidence.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {insight.evidence.slice(0, 2).map((line) => (
-            <span key={line} className="rounded-full border border-current/15 px-2.5 py-1 text-[11px] font-medium">
+        <div className="mt-4 flex flex-wrap gap-2">
+          {insight.evidence.slice(0, 3).map((line) => (
+            <span key={line} className="rounded-full border border-current/10 bg-white/50 px-2.5 py-1 text-[11px] font-medium">
               {line}
             </span>
           ))}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function ChangeCard({
+  title,
+  delta,
+  subtitle,
+}: {
+  title: string
+  delta?: string | null
+  subtitle: string
+}) {
+  const positive = typeof delta === "string" && !delta.startsWith("-")
+
+  return (
+    <div className="rounded-[28px] border border-zinc-200/70 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">{title}</p>
+      <p className={`mt-3 text-[2rem] font-semibold tracking-[-0.05em] ${positive ? "text-emerald-700" : "text-rose-700"}`}>
+        {delta ?? "-"}
+      </p>
+      <p className="mt-2 text-sm leading-6 text-zinc-500">{subtitle}</p>
+    </div>
+  )
+}
+
+function MetricGroupCard({
+  title,
+  description,
+  metrics,
+}: {
+  title: string
+  description: string
+  metrics: Array<{
+    key: string
+    label: string
+    value: string
+    subtitle: string
+    tone: MetricTone
+  }>
+}) {
+  return (
+    <div className={`rounded-[28px] border p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${metricGroupTone(title)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">{title}</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">{description}</p>
+        </div>
+        <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+          Secondary
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {metrics.map((metric) => (
+          <div key={metric.key} className="rounded-2xl border border-white/70 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{metric.label}</p>
+            <p className="mt-1.5 text-lg font-semibold tracking-tight text-zinc-950">{metric.value}</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">{metric.subtitle}</p>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -554,6 +636,39 @@ export default function CompanyAnalyticsPage() {
     () => displayMetrics.filter((metric) => !primaryMetricKeys.has(metric.key)),
     [displayMetrics, primaryMetricKeys]
   )
+  const secondaryMetricGroups = useMemo(() => {
+    const groups = [
+      {
+        title: "Profitability",
+        description: "Gross profit and margin depth behind the headline result.",
+        keys: ["gross_profit", "gross_margin_pct"],
+      },
+      {
+        title: "Revenue quality",
+        description: "Basket value, average pace, and ledger-led revenue context.",
+        keys: ["average_weekly_revenue", "average_weekly_profit", "average_order_value", "ledger_revenue_ex_vat"],
+      },
+      {
+        title: "Forecasting",
+        description: "Annualized pace and budget / forecast variance checks.",
+        keys: [
+          "annualized_revenue_ex_vat",
+          "annualized_net_profit",
+          "variance-vs-budget-revenue",
+          "variance-vs-budget-profit",
+          "variance-vs-forecast-revenue",
+          "variance-vs-forecast-profit",
+        ],
+      },
+    ]
+
+    return groups
+      .map((group) => ({
+        ...group,
+        metrics: secondaryMetrics.filter((metric) => group.keys.includes(metric.key)),
+      }))
+      .filter((group) => group.metrics.length > 0)
+  }, [secondaryMetrics])
 
   const revenueTrend = analytics?.sales_trend ?? []
   const marginTrend = analytics?.weekly_trend ?? []
@@ -617,7 +732,6 @@ export default function CompanyAnalyticsPage() {
 
     const insights: CompanyAnalyticsResponse["insights"] = []
     const revenue = analytics.summary.revenue_ex_vat ?? 0
-    const netProfit = analytics.summary.net_profit ?? 0
     const annualRevenue = analytics.summary.annualized_revenue_ex_vat ?? 0
     const annualNetProfit = analytics.summary.annualized_net_profit ?? 0
 
@@ -754,6 +868,33 @@ export default function CompanyAnalyticsPage() {
     return `${selectedWindow.label} - ${formatDateLong(selectedWindow.start)} -> ${formatDateLong(selectedWindow.end)}`
   }, [selectedWindow])
 
+  const healthSnapshot = useMemo(() => {
+    const criticalCount = combinedInsights.filter((item) => item.severity === "critical").length
+    const warningCount = combinedInsights.filter((item) => item.severity === "warning").length
+
+    if (criticalCount > 0) {
+      return {
+        label: "Needs attention",
+        tone: "rose" as const,
+        description: `${criticalCount} critical signal${criticalCount === 1 ? "" : "s"} in the current window.`,
+      }
+    }
+
+    if (warningCount > 0) {
+      return {
+        label: "Watch closely",
+        tone: "amber" as const,
+        description: `${warningCount} warning signal${warningCount === 1 ? "" : "s"} to review.`,
+      }
+    }
+
+    return {
+      label: "Healthy week",
+      tone: "emerald" as const,
+      description: "No critical signals are currently flagged in this period.",
+    }
+  }, [combinedInsights])
+
   const sectionTabs: Array<{ key: AnalyticsSection; label: string }> = [
     { key: "overview", label: "Overview" },
     { key: "revenue", label: "Revenue" },
@@ -873,9 +1014,9 @@ export default function CompanyAnalyticsPage() {
 
       {!loading && analytics ? (
         <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             {primaryMetrics.map((metric) => (
-              <MetricCard
+              <ExecutiveMetricCard
                 key={metric.key}
                 title={metric.label}
                 value={metric.value}
@@ -887,114 +1028,223 @@ export default function CompanyAnalyticsPage() {
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {sectionTabs.map((tab) => {
-              const active = activeSection === tab.key
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveSection(tab.key)}
-                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${active ? "border-zinc-900 bg-zinc-900 text-white shadow-sm" : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"}`}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-6">
+              <SectionCard title="What matters now" subtitle="Priority signals that deserve attention today.">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                  {overviewInsights.length > 0 ? (
+                    overviewInsights.map((insight) => <PriorityInsightCard key={insight.key} insight={insight} />)
+                  ) : (
+                    <div className="lg:col-span-3">
+                      <EmptyState
+                        title="No priority insights yet"
+                        body="This usually means the selected period is too sparse to generate a clear operating signal."
+                      />
+                    </div>
+                  )}
+                </div>
+              </SectionCard>
+
+              <SectionCard title="What changed" subtitle="Primary movement versus the previous period.">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  {changeSummaryMetrics.map((metric) => (
+                    <ChangeCard key={metric.key} title={metric.label} delta={metric.delta} subtitle={metric.subtitle} />
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Secondary metrics" subtitle="Lower-priority metrics grouped by business area.">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  {secondaryMetricGroups.map((group) => (
+                    <MetricGroupCard
+                      key={group.title}
+                      title={group.title}
+                      description={group.description}
+                      metrics={group.metrics}
+                    />
+                  ))}
+                </div>
+              </SectionCard>
+            </div>
+
+            <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+              <SectionCard
+                title="Executive snapshot"
+                subtitle="Health, coverage and the strongest recommendation."
+                className="xl:shadow-[0_16px_40px_rgba(15,23,42,0.04)]"
+              >
+                <div
+                  className={`rounded-[24px] border p-4 ${
+                    healthSnapshot.tone === "emerald"
+                      ? "border-emerald-200 bg-emerald-50/70 text-emerald-900"
+                      : healthSnapshot.tone === "amber"
+                        ? "border-amber-200 bg-amber-50/70 text-amber-900"
+                        : "border-rose-200 bg-rose-50/70 text-rose-900"
+                  }`}
                 >
-                  {tab.label}
-                </button>
-              )
-            })}
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] opacity-70">Health status</p>
+                      <p className="mt-2 text-lg font-semibold tracking-tight">{healthSnapshot.label}</p>
+                    </div>
+                    <span
+                      className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                        healthSnapshot.tone === "emerald"
+                          ? "bg-emerald-500"
+                          : healthSnapshot.tone === "amber"
+                            ? "bg-amber-500"
+                            : "bg-rose-500"
+                      }`}
+                    />
+                  </div>
+                  <p className="mt-3 text-sm leading-6 opacity-90">{healthSnapshot.description}</p>
+                </div>
+
+                <div className="mt-4 rounded-[24px] border border-zinc-200/70 bg-zinc-50/70 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Strongest recommendation</p>
+                  {overviewInsights[0] ? (
+                    <>
+                      <h3 className="mt-2 text-base font-semibold tracking-tight text-zinc-950">{overviewInsights[0].title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-zinc-500">{overviewInsights[0].recommended_action}</p>
+                      {overviewInsights[0].evidence.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {overviewInsights[0].evidence.slice(0, 2).map((line) => (
+                            <span
+                              key={line}
+                              className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-600"
+                            >
+                              {line}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="mt-2 text-sm leading-6 text-zinc-500">No recommendation is available yet for this period.</p>
+                  )}
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <div className="rounded-[24px] border border-zinc-200/70 bg-white p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Best period</p>
+                    <p className="mt-2 text-lg font-semibold tracking-tight text-zinc-950">{bestPeriod?.label ?? "-"}</p>
+                    <p className="mt-1 text-sm text-zinc-500">
+                      {bestPeriod ? `${formatMoney(bestPeriod.revenue_ex_vat)} revenue ex VAT` : "No highlight yet"}
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] border border-zinc-200/70 bg-white p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Weakest period</p>
+                    <p className="mt-2 text-lg font-semibold tracking-tight text-zinc-950">{weakestPeriod?.label ?? "-"}</p>
+                    <p className="mt-1 text-sm text-zinc-500">
+                      {weakestPeriod ? `${formatMoney(weakestPeriod.revenue_ex_vat)} revenue ex VAT` : "No weak window yet"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-[24px] border border-zinc-200/70 bg-white p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Coverage</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl bg-zinc-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Reports</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.weekly_reports)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-zinc-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Invoices</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.sales_invoices)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-zinc-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Matched</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.matched_products)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-zinc-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Purchases</p>
+                      <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.purchase_lines)}</p>
+                    </div>
+                  </div>
+                </div>
+              </SectionCard>
+            </aside>
+          </div>
+
+          <div className="rounded-[28px] border border-zinc-200 bg-white p-2 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              {sectionTabs.map((tab) => {
+                const active = activeSection === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveSection(tab.key)}
+                    className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                      active
+                        ? "border-zinc-900 bg-zinc-900 text-white shadow-sm"
+                        : "border-transparent bg-transparent text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {activeSection === "overview" ? (
-            <div className="hidden">
-              <CompactMetricCard
-                title="Best period"
-                value={bestPeriod?.label ?? "-"}
-                subtitle={bestPeriod ? `${formatMoney(bestPeriod.revenue_ex_vat)} revenue ex VAT` : "No highlight yet"}
-                tone="emerald"
-              />
-              <CompactMetricCard
-                title="Weakest period"
-                value={weakestPeriod?.label ?? "-"}
-                subtitle={weakestPeriod ? `${formatMoney(weakestPeriod.revenue_ex_vat)} revenue ex VAT` : "No weak window yet"}
-                tone="rose"
-              />
-              <CompactMetricCard
-                title="Coverage"
-                value={formatCount(analytics.coverage.weekly_reports)}
-                subtitle={`${formatCount(analytics.coverage.sales_invoices)} invoices · ${formatCount(analytics.coverage.matched_products)} matched products`}
-                tone="blue"
-              />
-            </div>
-          ) : null}
-
-          {activeSection === "overview" ? (
-            <SectionCard title="Overview" subtitle="What happened, why it happened, and what to do next.">
+            <SectionCard title="Trend overview" subtitle="How the selected period is moving across revenue, margin and operational pressure.">
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                    {overviewInsights.length > 0 ? (
-                      overviewInsights.map((insight) => <InsightCard key={insight.key} insight={insight} />)
+                <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/70 p-4">
+                  <div className="flex items-center gap-3">
+                    <BarChart3 size={18} className="text-zinc-500" />
+                    <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Revenue trend</h3>
+                  </div>
+                  <p className="mt-2 text-sm text-zinc-500">Revenue ex VAT over the selected period.</p>
+                  <div className="mt-5 h-[250px]">
+                    {revenueTrend.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={revenueTrend}>
+                          <defs>
+                            <linearGradient id="analyticsRevenueFillOverview" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#18181b" stopOpacity={0.16} />
+                              <stop offset="95%" stopColor="#18181b" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                          <XAxis dataKey="label" tick={{ fill: "#71717a", fontSize: 12 }} />
+                          <YAxis tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={(value) => formatMoney(value as number)} />
+                          <Tooltip
+                            formatter={(value: number | string | undefined) => formatMoney(Number(value ?? 0))}
+                            labelFormatter={(label) => String(label)}
+                            contentStyle={{
+                              borderRadius: 16,
+                              border: "1px solid #e4e4e7",
+                              background: "#ffffff",
+                            }}
+                          />
+                          <Area type="monotone" dataKey="revenue_ex_vat" stroke="#18181b" fill="url(#analyticsRevenueFillOverview)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     ) : (
-                      <div className="lg:col-span-3">
-                        <EmptyState
-                          title="No insights yet"
-                          body="This usually means the period is too sparse or the data does not yet contain enough signals to build a meaningful recommendation."
-                        />
-                      </div>
+                      <EmptyState
+                        title="No sales trend available"
+                        body="Revenue trend data will appear once the selected period contains invoices."
+                      />
                     )}
                   </div>
-
-                  {changeSummaryMetrics.length > 0 ? (
-                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">What changed</p>
-                          <p className="mt-1 text-sm text-zinc-500">Primary movement versus the previous period.</p>
-                        </div>
-                      </div>
-                      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                        {changeSummaryMetrics.map((metric) => (
-                          <div key={metric.key} className="rounded-2xl border border-zinc-200 bg-white p-4">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{metric.label}</p>
-                            <p className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">{metric.delta ?? "-"}</p>
-                            <p className="mt-1 text-sm text-zinc-500">{metric.subtitle}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {secondaryMetrics.length > 0 ? (
-                    <div className="flex gap-3 overflow-x-auto pb-1 pt-1">
-                      {secondaryMetrics.map((metric) => (
-                        <div key={metric.key} className="min-w-[220px] shrink-0">
-                          <CompactMetricCard title={metric.label} value={metric.value} subtitle={metric.subtitle} tone={metric.tone} />
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
+                  <div className="rounded-[24px] border border-zinc-200 bg-white p-4">
                     <div className="flex items-center gap-3">
-                      <BarChart3 size={18} className="text-zinc-500" />
-                      <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Summary trend</h3>
+                      <TrendingUp size={18} className="text-zinc-500" />
+                      <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Margin pulse</h3>
                     </div>
-                    <p className="mt-2 text-sm text-zinc-500">Revenue ex VAT over the selected period.</p>
-                    <div className="mt-4 h-[220px]">
-                      {revenueTrend.length > 0 ? (
+                    <div className="mt-4 h-[180px]">
+                      {weeklyTrendPoints.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={revenueTrend}>
-                            <defs>
-                              <linearGradient id="analyticsRevenueFillOverview" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#18181b" stopOpacity={0.16} />
-                                <stop offset="95%" stopColor="#18181b" stopOpacity={0.02} />
-                              </linearGradient>
-                            </defs>
+                          <LineChart data={weeklyTrendPoints}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
                             <XAxis dataKey="label" tick={{ fill: "#71717a", fontSize: 12 }} />
-                            <YAxis tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={(value) => formatMoney(value as number)} />
+                            <YAxis tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={(value) => formatPct(Number(value))} />
                             <Tooltip
-                              formatter={(value: number | string | undefined) => formatMoney(Number(value ?? 0))}
+                              formatter={(value: number | string | undefined) => formatPct(Number(value ?? 0))}
                               labelFormatter={(label) => String(label)}
                               contentStyle={{
                                 borderRadius: 16,
@@ -1002,46 +1252,38 @@ export default function CompanyAnalyticsPage() {
                                 background: "#ffffff",
                               }}
                             />
-                            <Area type="monotone" dataKey="revenue_ex_vat" stroke="#18181b" fill="url(#analyticsRevenueFillOverview)" />
-                          </AreaChart>
+                            <Line type="monotone" dataKey="gross_margin_pct" stroke="#0f172a" strokeWidth={2} dot={false} />
+                            <Line type="monotone" dataKey="net_margin_pct" stroke="#16a34a" strokeWidth={2} dot={false} />
+                            <Line type="monotone" dataKey="labour_pct" stroke="#e11d48" strokeWidth={2} dot={false} />
+                          </LineChart>
                         </ResponsiveContainer>
                       ) : (
                         <EmptyState
-                          title="No sales trend available"
-                          body="Revenue trend data will appear once the selected period contains invoices."
+                          title="No weekly margin data yet"
+                          body="Weekly reports are needed to plot gross and net margin behaviour."
                         />
                       )}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                  <div className="rounded-[24px] border border-zinc-200 bg-white p-4">
                     <div className="flex items-center gap-3">
-                      <TrendingUp size={18} className="text-zinc-500" />
-                      <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Coverage</h3>
+                      <Compass size={18} className="text-zinc-500" />
+                      <h3 className="text-lg font-semibold tracking-tight text-zinc-950">Fast read</h3>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <div className="rounded-2xl bg-zinc-50 p-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Weekly reports</p>
-                        <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.weekly_reports)}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Best week</p>
+                        <p className="mt-1 text-base font-semibold text-zinc-950">{bestPeriod?.label ?? "-"}</p>
                       </div>
                       <div className="rounded-2xl bg-zinc-50 p-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Matched products</p>
-                        <p className="mt-1 text-lg font-semibold text-zinc-950">{formatCount(analytics.coverage.matched_products)}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Weakest week</p>
+                        <p className="mt-1 text-base font-semibold text-zinc-950">{weakestPeriod?.label ?? "-"}</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              {secondaryMetrics.length > 0 ? (
-                <div className="mt-4 flex gap-3 overflow-x-auto pb-1 pt-1">
-                  {secondaryMetrics.map((metric) => (
-                    <div key={metric.key} className="min-w-[220px] shrink-0">
-                      <CompactMetricCard title={metric.label} value={metric.value} subtitle={metric.subtitle} tone={metric.tone} />
-                    </div>
-                  ))}
-                </div>
-              ) : null}
             </SectionCard>
           ) : null}
 
@@ -1324,28 +1566,28 @@ export default function CompanyAnalyticsPage() {
           >
             {budgetSummary ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard
+                <ExecutiveMetricCard
                   title="Budgeted revenue"
                   value={formatMoney(budgetSummary.revenue)}
                   subtitle="Selected period allocation from the annual plan"
                   tone="amber"
                   icon={<Target size={18} />}
                 />
-                <MetricCard
+                <ExecutiveMetricCard
                   title="Budget variance"
                   value={formatMoney((analytics.summary.revenue_ex_vat ?? 0) - budgetSummary.revenue)}
                   subtitle="Actual revenue minus budgeted period revenue"
                   tone="blue"
                   icon={<TrendingUp size={18} />}
                 />
-                <MetricCard
+                <ExecutiveMetricCard
                   title="Forecast revenue"
                   value={formatMoney(analytics.summary.annualized_revenue_ex_vat ?? 0)}
                   subtitle="Annualized run-rate based on the selected period"
                   tone="emerald"
                   icon={<TrendingUp size={18} />}
                 />
-                <MetricCard
+                <ExecutiveMetricCard
                   title="Forecast variance"
                   value={formatMoney((analytics.summary.annualized_revenue_ex_vat ?? 0) - budgetSummary.annualRevenueTarget)}
                   subtitle="Run-rate versus the annual revenue target"
@@ -1523,3 +1765,4 @@ export default function CompanyAnalyticsPage() {
     </div>
   )
 }
+
